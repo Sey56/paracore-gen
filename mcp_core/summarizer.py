@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -9,6 +10,85 @@ TABLE_TAIL_ROWS = 2           # Last N rows preserved (often contain totals/summ
 MAX_TEXT_LINES = 20           # Cap for verbose text output shown to agent
 SHOW_ALL_TABLE_THRESHOLD = 50 # Show ALL rows if total ≤ this
 SHOW_ALL_TEXT_THRESHOLD = 20  # Show ALL lines if total ≤ this
+SNIFF_ROWS = 20               # Rows sampled to decide if a column is numeric
+
+# Columns worth summing: aggregate quantities only, never dimensions or identifiers.
+SUM_KEYWORDS = {
+    "area", "volume", "length", "weight", "mass", "count",
+    "quantity", "total", "cost", "price", "tonnage",
+    "amount", "perimeter", "girth",
+    # Takeoff vocabulary — these were missing, which silently dropped the
+    # finishing quantities (plaster / paint / tile / skirting / screed) from the
+    # `Totals (all N rows)` line, i.e. exactly the numbers a finishing takeoff is
+    # about. Found + fixed 2026-09-18 (tests/test_summarizer.py).
+    "plaster", "paint", "tile", "skirting", "screed", "glaz", "rebar",
+    "mullion", "panel", "formwork", "excavation", "backfill", "blinding",
+    "render", "cladding", "waterproof",
+}
+
+# A unit suffix is a strong, self-maintaining signal of a quantity — it catches
+# new columns without anyone having to remember to extend SUM_KEYWORDS.
+SUM_SUFFIXES = ("_m2", "_m3", "_m", "_mm", "_cm", "_kg", "_t", "_sqm", "_cum", "_m²", "_m³")
+
+# Never summed, however numeric they look. Summing these is meaningless, which is
+# the whole reason the allow-list exists.
+NEVER_SUM = {
+    "id", "elementid", "element_id", "typeid", "type_id", "level", "elevation",
+    "number", "no", "index", "code", "mark", "year", "phase", "zone", "storey",
+    "level_m", "elevation_m",
+}
+
+
+def _to_float(value: Any) -> Optional[float]:
+    """Parse a cell as a FINITE float, or None. NaN/inf are rejected — a single
+    `NaN` cell used to poison a whole column total into `nan`."""
+    try:
+        f = float(str(value).replace(",", "").strip())
+    except (ValueError, TypeError):
+        return None
+    return f if math.isfinite(f) else None
+
+
+def _is_numeric_column(data: List[Dict[str, Any]], header: str) -> bool:
+    """True when a MAJORITY of a sample of rows parse as finite numbers.
+
+    ⚠ Deliberately samples SNIFF_ROWS rows, not just `data[0]`: these tables
+    routinely carry a blank or `—` in the first row, and a first-row-only test
+    let one blank cell erase the entire aggregate — silently.
+    """
+    sample = data[:SNIFF_ROWS]
+    if not sample:
+        return False
+    numeric = sum(1 for row in sample if _to_float(row.get(header, "")) is not None)
+    return numeric * 2 >= len(sample)
+
+
+def _is_summable(header: str) -> bool:
+    """Should this column appear in the `Totals (all N rows)` line?"""
+    low = header.lower().strip()
+    if low in NEVER_SUM:
+        return False
+    if any(kw in low for kw in SUM_KEYWORDS):
+        return True
+    return low.endswith(SUM_SUFFIXES)
+
+
+def _no_aggregate_warning(headers: List[str], hidden: int) -> str:
+    """The message emitted when a TRUNCATED table has no summable column.
+
+    ⚠ Never silent. A truncated table with no aggregate must SAY so, because
+    "no totals line" is otherwise indistinguishable from "this table has no
+    numeric columns" — and the rows the caller needed are the hidden ones.
+
+    Extracted from `summarize` so this branch is reachable from a test: a
+    failure path that cannot be injected cannot be shown to have teeth.
+    """
+    return (
+        f"⚠ No numeric quantity column found among: "
+        f"{', '.join(headers[:12])} — the {hidden} hidden rows are NOT "
+        f"represented by any total. Query an explicit aggregate, or read the "
+        f"full table through the REPL."
+    )
 
 
 def _markdown_table(headers: List[str], rows: List[List[str]]) -> str:
@@ -76,32 +156,21 @@ def summarize(output_raw: Dict[str, Any]) -> str:
                     if total_rows <= SHOW_ALL_TABLE_THRESHOLD:
                         parts.append(f"{title_line}Table ({total_rows} rows):\n{table_md}")
                     else:
-                        # Compute aggregate totals only for quantity columns.
-                        # Only sum columns that are clearly aggregate quantities,
-                        # not dimensions or identifiers.
-                        SUM_KEYWORDS = {
-                            "area", "volume", "length", "weight", "mass", "count",
-                            "quantity", "total", "cost", "price", "tonnage",
-                            "amount", "perimeter", "girth",
-                        }
-                        numeric_cols = {}
-                        first_row = data[0]
+                        # Aggregate totals for QUANTITY columns only — never dimensions
+                        # or identifiers. Column selection is deliberately generous
+                        # (keyword OR unit suffix) but the deny-list is explicit, and the
+                        # numeric test samples rows rather than trusting `data[0]`.
+                        numeric_cols: Dict[str, float] = {}
                         for h in headers:
-                            low = h.lower().strip()
-                            if not any(kw in low for kw in SUM_KEYWORDS):
+                            if not _is_summable(h) or not _is_numeric_column(data, h):
                                 continue
-                            try:
-                                float(str(first_row.get(h, "")).replace(",", ""))
-                                numeric_cols[h] = 0.0
-                            except (ValueError, TypeError):
-                                pass
+                            numeric_cols[h] = 0.0
                         if numeric_cols:
                             for row in data:
                                 for h in numeric_cols:
-                                    try:
-                                        numeric_cols[h] += float(str(row.get(h, "")).replace(",", ""))
-                                    except (ValueError, TypeError):
-                                        pass
+                                    v = _to_float(row.get(h, ""))
+                                    if v is not None:
+                                        numeric_cols[h] += v
                             total_parts = []
                             for h in numeric_cols:
                                 v = f"{numeric_cols[h]:.2f}".rstrip('0').rstrip('.')
@@ -113,7 +182,12 @@ def summarize(output_raw: Dict[str, Any]) -> str:
                                 f"**Totals (all {total_rows} rows):** {total_str}"
                             )
                         else:
-                            parts.append(f"{title_line}Table — {total_rows} rows total (showing first {MAX_TABLE_ROWS} + last {TABLE_TAIL_ROWS}):\n{table_md}")
+                            # ⚠ Never silent — see _no_aggregate_warning.
+                            parts.append(
+                                f"{title_line}Table — {total_rows} rows total "
+                                f"(showing first {MAX_TABLE_ROWS} + last {TABLE_TAIL_ROWS}):\n{table_md}\n"
+                                + _no_aggregate_warning(headers, total_rows - len(shown))
+                            )
                         parts.append(f"↳ {total_rows - len(shown)} more rows not shown. Narrow your query with .WhereParam() or .GroupByParam() for focused results.")
                 else:
                     parts.append(f"Table **{title}** has {total_rows} rows (data available in UI).")

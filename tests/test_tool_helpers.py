@@ -61,11 +61,24 @@ class TestParacoreCompliance:
         assert "Println" in err
 
     def test_blocks_foreach_println(self):
+        # ⚠ The pattern deliberately requires 3+ Println calls in one loop body —
+        # see the comment on _ANTI_PATTERNS[0]: "only flag when used as the
+        # PRIMARY display method ... not when used for quick debug checks".
+        # A 1-Println body is a legitimate debug loop and must stay silent.
+        # This fixture previously used ONE Println and so asserted against the
+        # documented design; it could never pass. Measured:
+        #   1 Println -> silent, 2 -> silent, 3 -> fires.
         err = check_paracore_compliance(
-            'foreach(var x in items) { Println(x.Name); }'
+            'foreach(var x in items) { Println(x.Name); Println(x.Id); Println(x.Level); }'
         )
         assert err is not None
         assert "Table" in err
+
+    def test_allows_a_one_println_debug_loop(self):
+        # The other half of the same rule: do not nag on a quick debug loop.
+        assert check_paracore_compliance(
+            'foreach(var x in items) { Println(x.Name); }'
+        ) is None
 
     def test_blocks_select_after_groupbyparam(self):
         err = check_paracore_compliance(

@@ -779,7 +779,8 @@ def clear_assembly_cache():
         return {"is_success": False, "message": f"gRPC Error: {e.details()}"}
 
 def execute_repl(code: str, session_id: str, license_tier: str = "free",
-                 execution_mode: str = "read_write", source: str = "paracore"):
+                 execution_mode: str = "read_write", source: str = "paracore",
+                 timeout: float = 120):
     """
     Calls the gRPC service to execute a REPL command in Revit.
 
@@ -789,6 +790,9 @@ def execute_repl(code: str, session_id: str, license_tier: str = "free",
         license_tier: License tier string.
         execution_mode: "read_only" or "read_write" (default).
         source: Caller identifier — "mcp_agent", "paracore_agent", "paracore_ui", "paracore".
+        timeout: gRPC deadline in seconds. Bounded so a stuck Revit cannot block
+            a tool forever; callers running LONG jobs (e.g. the bundled
+            GetAllTakeoffs export) pass a larger value.
     """
     try:
         with get_corescript_runner_stub() as stub:
@@ -799,7 +803,7 @@ def execute_repl(code: str, session_id: str, license_tier: str = "free",
                 execution_mode=execution_mode,
                 source=source
             )
-            response = stub.ExecuteRepl(request)
+            response = stub.ExecuteRepl(request, timeout=timeout)
             structured_output_data = [{"type": item.type, "data": item.data, "title": item.title} for item in getattr(response, 'structured_output', [])]
             pipeline_diags = list(getattr(response, 'pipeline_diagnostics', []))
             return {
@@ -814,6 +818,11 @@ def execute_repl(code: str, session_id: str, license_tier: str = "free",
     except grpc.RpcError as e:
         if e.code() == grpc.StatusCode.UNAVAILABLE:
             return {"is_success": False, "output": "", "error_message": GRPC_UNAVAILABLE_MSG,
+                    "user_rejected": False, "read_only_violation": False}
+        if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+            return {"is_success": False, "output": "",
+                    "error_message": "Revit did not respond within 120s — the model may be busy, "
+                                     "or Revit is showing a dialog. Try again.",
                     "user_rejected": False, "read_only_violation": False}
         logging.error(format_grpc_error(e))
         return {"is_success": False, "output": "", "error_message": f"gRPC Error: {e.details()}",
