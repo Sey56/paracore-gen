@@ -15,11 +15,66 @@ _TYPE_SUFFIXES = [
     'Boolean', 'YesNo', 'Number', 'Text', 'Enum',
 ]
 
-# ── Anti-Pattern Detection ──────────────────────────────────────────────────
-# Regex patterns that indicate raw Revit API usage instead of Paracore extensions.
-# Each tuple: (regex, suggestion message). Order matters — more specific first.
+# ── Code checks — two tiers with deliberately different consequences ─────────
+#
+# _HARD_ERRORS — code that CANNOT work. It will not compile, calls something that
+#   does not exist, or uses a method in a way that always throws. These BLOCK
+#   execution, because running them only burns a round-trip to learn what we
+#   already know.
+#
+# _LINT_RULES — code that RUNS but breaks convention or is likely to produce a
+#   WRONG ANSWER (raw Revit API where a Paracore method is safer, hardcoded unit
+#   maths, output that goes nowhere). ADVISORY only — attached to the result,
+#   never blocking. The agent sees them and self-corrects without paying for a
+#   failed call.
+#
+# Demoted from hard blocks to lint on 2026-09-30. The previous behaviour
+# hard-blocked `.OrderBy(x => ...)` even on a plain List<string>, where the
+# suggested replacement (.OrderByParam) does not exist — advice that cannot be
+# followed, at the cost of a round-trip. Capability boundaries belong at the
+# permission layer, not in regexes over source text.
+#
+# Each tuple: (regex, message). Order matters — more specific first.
 
-_ANTI_PATTERNS: list[tuple[str, str]] = [
+_HARD_ERRORS: list[tuple[str, str]] = [
+    # .Select() after .GroupByParam() is not supported by the pipeline.
+    (
+        r'\.GroupByParam\s*\([^)]+\)\s*\.\s*Select\s*\(',
+        'NEVER chain .Select() after .GroupByParam(). Chain .Table() directly: .GroupByParam("Level").Table()'
+    ),
+    # `doc` / `document` are not defined — only the injected global `Doc` exists.
+    (
+        r'(?-i:(?<![.\w])doc\.)',
+        'Use Doc (capital D) — it\'s the global Revit Document. doc (lowercase) is not defined.'
+    ),
+    (
+        r'(?-i:(?<![.\w])document\.)',
+        'Use Doc (capital D) — only the injected global exists; `document` is not defined.'
+    ),
+    # Transact() requires a name string as its first argument.
+    (
+        r'Transact\s*\(\s*\(',
+        'Transact() requires a name string: Transact("description", () => { ... }). Do NOT call Transact(() => {}) — the first argument must be a string label.'
+    ),
+    # CombinedParams() takes no arguments.
+    (
+        r'\.CombinedParams\s*\([^)]+\s*\)',
+        'CombinedParams() takes NO arguments — it returns ALL instance+type parameters for a single element. Use: element.CombinedParams().Table() or element.CombinedParams().Peek(). To filter specific parameters, use .Select() with .GetStr()/.GetNum() instead.'
+    ),
+    # .SetVal()/.SetNum() are single-element — chaining them off a filter throws.
+    (
+        r'\.WhereParam\s*\([^)]+\)\s*\.\s*Set(?:Val|Num)\s*\(',
+        '.SetVal() and .SetNum() work on SINGLE elements only (e.g., wall.SetVal("Comments", "Done")). For COLLECTIONS use .SetParam("Name", value) for bulk writes, or wrap in Transact("label", () => { foreach (var e in collection) { e.SetVal(...); } }).'
+    ),
+    # AllElements does not exist.
+    (
+        r'\bAllElements\b',
+        'Use GetElements<T>() for typed retrieval or GetElements("Category") for string-based. "AllElements" does not exist — the correct global is GetElements.'
+    ),
+]
+
+# Advisory only — attached to the result, never blocks execution.
+_LINT_RULES: list[tuple[str, str]] = [
     # Display: foreach+Println for data output — only flag when used
     # as the PRIMARY display method (3+ Println calls in one loop),
     # not when used for quick debug checks.
@@ -31,11 +86,6 @@ _ANTI_PATTERNS: list[tuple[str, str]] = [
     (
         r'string\.Join\s*\([^)]*Select\s*\(',
         'Use .Select(x => new{...}).Table() instead of string.Join for data display.'
-    ),
-    # Chain anti-pattern: .Select() after .GroupByParam()
-    (
-        r'\.GroupByParam\s*\([^)]+\)\s*\.\s*Select\s*\(',
-        'NEVER chain .Select() after .GroupByParam(). Chain .Table() directly: .GroupByParam("Level").Table()'
     ),
     # Raw element collection instead of GetElements
     (
@@ -66,16 +116,9 @@ _ANTI_PATTERNS: list[tuple[str, str]] = [
         r'\.GetElement\(\s*new\s+ElementId\(',
         'Use id.ToElement(Doc) to resolve an ElementId, or GetElement<T>("name") to find by name, or GetElements<T>() to query all. Avoid .GetElement(new ElementId(...)).'
     ),
-    # Lowercase doc (should be Doc — the global). (?-i) disables IGNORECASE so Doc. passes.
-    (
-        r'(?-i:(?<![.\w])doc\.)',
-        'Use Doc (capital D) — it\'s the global Revit Document. doc (lowercase) is not defined.'
-    ),
-    (
-        r'(?-i:\bdocument\b)',
-        'Use Doc (capital D) — the global Revit Document. \"Document\" as a type/class is not available; Doc is the injected global.'
-    ),
-    # LINQ on element collections instead of Paracore equivalents
+    # LINQ on element collections instead of Paracore equivalents.
+    # NOTE: these are conventions, not errors. Plain LINQ over a NON-element list
+    # (e.g. List<string> from reflection) is perfectly valid — the messages say so.
     (
         r'\.OrderByDescending\s*\(\s*\w+\s*=>',
         'Use .OrderByParamDesc("Name") instead of .OrderByDescending().'
@@ -101,30 +144,10 @@ _ANTI_PATTERNS: list[tuple[str, str]] = [
         r'(?<!\.)\bPrint\s*\(',
         'Use Println() (capital P, lowercase rintln) for console output. Print() is an alias that works but Println() is the canonical form.'
     ),
-    # Console.WriteLine instead of Println
+    # Console.WriteLine — runs, but the output is not captured.
     (
         r'Console\.WriteLine\s*\(',
-        'Use Println() instead of Console.WriteLine() in Paracore scripts.'
-    ),
-    # Transact called without a name string — must be Transact("name", () => {})
-    (
-        r'Transact\s*\(\s*\(',
-        'Transact() requires a name string: Transact("description", () => { ... }). Do NOT call Transact(() => {}) — the first argument must be a string label.'
-    ),
-    # CombinedParams called with arguments — takes none
-    (
-        r'\.CombinedParams\s*\([^)]+\s*\)',
-        'CombinedParams() takes NO arguments — it returns ALL instance+type parameters for a single element. Use: element.CombinedParams().Table() or element.CombinedParams().Peek(). To filter specific parameters, use .Select() with .GetStr()/.GetNum() instead.'
-    ),
-    # .SetVal() or .SetNum() called on a collection (IEnumerable) — these are single-element methods
-    (
-        r'\.WhereParam\s*\([^)]+\)\s*\.\s*Set(?:Val|Num)\s*\(',
-        '.SetVal() and .SetNum() work on SINGLE elements only (e.g., wall.SetVal("Comments", "Done")). For COLLECTIONS use .SetParam("Name", value) for bulk writes, or wrap in Transact("label", () => { foreach (var e in collection) { e.SetVal(...); } }).'
-    ),
-    # AllElements — doesn't exist. Use GetElements
-    (
-        r'\bAllElements\b',
-        'Use GetElements<T>() for typed retrieval or GetElements("Category") for string-based. "AllElements" does not exist — the correct global is GetElements.'
+        'Console.WriteLine() output is NOT captured by Paracore. Use Println() or the output is silently lost.'
     ),
 ]
 
@@ -257,53 +280,68 @@ def check_dangerous_patterns(code: str, agent_only: bool = True) -> Optional[str
     return msg
 
 
-def check_paracore_compliance(code: str) -> Optional[str]:
-    """
-    Scan C# code for raw Revit API anti-patterns.
-
-    Returns None if code passes (no anti-patterns found), or a structured
-    error message with specific suggestions for each detected anti-pattern.
-    The error message is designed to help the LLM self-correct.
-    """
+def _scan(code: str, rules: list[tuple[str, str]]) -> list[str]:
+    """Return the deduplicated messages for every rule that matches."""
     issues: list[str] = []
-    seen_patterns: set[str] = set()  # deduplicate by suggestion text
-
-    for pattern, suggestion in _ANTI_PATTERNS:
-        if suggestion in seen_patterns:
+    seen: set[str] = set()
+    for pattern, message in rules:
+        if message in seen:
             continue
         if re.search(pattern, code, re.IGNORECASE | re.DOTALL):
-            issues.append(suggestion)
-            seen_patterns.add(suggestion)
+            issues.append(message)
+            seen.add(message)
+    return issues
 
-    # ── Special: foreach + SetVal/SetNum without Transact wrapper ─────────
-    # The engine auto-transacts single-element SetVal/SetNum and collection
-    # .SetParam(), but a foreach loop doing SetVal/SetNum creates separate
-    # transactions per iteration — polluting the undo stack. The fix is to
-    # wrap the foreach in Transact("label", () => { ... }), which makes
-    # IsModifiable true and suppresses individual auto-transactions.
-    _FOREACH_TRANSACT_KEY = "foreach-transact"
-    if _FOREACH_TRANSACT_KEY not in seen_patterns:
-        if re.search(r'foreach\s*\(', code):
-            if re.search(r'\.Set(?:Val|Num)\s*\(', code):
-                if not re.search(r'Transact\s*\(', code):
-                    issues.append(
-                        'foreach loops using .SetVal()/.SetNum() MUST be wrapped in '
-                        'Transact("label", () => { ... foreach (...) { w.SetVal(...); } }). '
-                        'Without Transact(), each .SetVal/.SetNum creates its own undo entry — '
-                        'polluting the undo stack. The engine skips individual auto-transactions '
-                        'when IsModifiable is true (inside a Transact block). Single-element '
-                        'SetVal/SetNum and collection .SetParam() auto-transact safely.'
-                    )
-                    seen_patterns.add(_FOREACH_TRANSACT_KEY)
 
+def check_paracore_compliance(code: str) -> Optional[str]:
+    """
+    BLOCKING check — only code that genuinely cannot work.
+
+    Returns None if the code is runnable, or an error listing the constructs that
+    will fail. Deliberately narrow: everything here would throw or fail to compile,
+    so refusing costs nothing. Style and convention live in
+    lint_paracore_conventions(), which never blocks.
+    """
+    issues = _scan(code, _HARD_ERRORS)
     if not issues:
         return None
 
-    msg = "Use Paracore extension methods instead of raw Revit API:\n\n"
+    msg = "This code cannot run — fix these before resubmitting:\n\n"
     for i, issue in enumerate(issues, 1):
         msg += f"{i}. {issue}\n"
     msg += ("\nRead paracore://system-prompt for the complete method catalog. "
             "Call read_extension_methods(\"method-name\") for specific syntax.")
+    return msg
+
+
+def lint_paracore_conventions(code: str) -> Optional[str]:
+    """
+    ADVISORY check — code that runs but probably misbehaves. Never blocks.
+
+    The result is attached to the execution output so the agent can self-correct
+    without paying for a failed call. Absence of a lint is not proof the code is
+    right; it only means it did not match a known pattern.
+    """
+    issues = _scan(code, _LINT_RULES)
+
+    # foreach + .SetVal()/.SetNum() without Transact(): runs fine, but creates one
+    # undo entry per iteration instead of one for the whole loop.
+    if (re.search(r'foreach\s*\(', code)
+            and re.search(r'\.Set(?:Val|Num)\s*\(', code)
+            and not re.search(r'Transact\s*\(', code)):
+        issues.append(
+            'foreach with .SetVal()/.SetNum() is not wrapped in Transact(). It will run, '
+            'but each iteration creates its own undo entry, cluttering the undo stack. '
+            'Wrap the loop: Transact("label", () => { foreach (...) { e.SetVal(...); } }).'
+        )
+
+    if not issues:
+        return None
+
+    msg = "CONVENTION NOTES (advisory — your code was still executed):\n\n"
+    for i, issue in enumerate(issues, 1):
+        msg += f"{i}. {issue}\n"
+    msg += "\nPrefer the Paracore method where one exists. Read paracore://system-prompt.\n\n"
     return msg
 
 

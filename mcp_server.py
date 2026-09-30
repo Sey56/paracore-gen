@@ -40,6 +40,9 @@ from mcp_core.tools import (
     search_schema,
     read_extension_methods,
     get_globals,
+    get_context_report,
+    pick_object_report,
+    ping as ping_impl,
     _SESSION,
 )
 from mcp_core.metrics import init as init_metrics
@@ -115,10 +118,18 @@ PARAMETER NAMES — NEVER GUESS:
 	  NEVER guess parameter names. Discover first on the actual category.
 
 START EVERY SESSION WITH:
-  1. ping  → confirms connectivity + shows full cheat sheet
-  2. Read paracore://skills  → skill catalog (which skills cover which operations)
-  3. Read the skill resources relevant to the user's request
-  4. Then explore. Never write code before reading the relevant skills."""
+  1. ping  → verifies the connection for real. If it reports NO CONNECTION, stop
+             and tell the user what to fix. Do not attempt Revit operations.
+  2. get_context  → active view, current selection, project levels
+  3. Read paracore://skills  → skill catalog (which skills cover which operations)
+  4. Read the skill resources relevant to the user's request
+  5. Then explore. Never write code before reading the relevant skills.
+
+NEVER RETRY BLINDLY:
+  Revit's API is single-threaded. Repeating a failed or slow call queues behind the
+  one still running and can wedge Revit until it is restarted. If a call reports
+  REVIT IS BUSY or a timeout, STOP — wait, ask the user to check Revit for a dialog,
+  then confirm Revit responds with a small query."""
 )
 
 # Cache resource files in memory at startup (read once, serve from RAM)
@@ -147,13 +158,64 @@ logger.info(f"MCP resources cached: REPL_GUIDE={len(_CACHED_REPL_GUIDE)} chars, 
 @mcp.tool()
 def ping() -> str:
     """
-    Verify the Paracore MCP server is alive and connected to Revit.
+    Verify the Paracore MCP server is alive AND that Revit is genuinely reachable.
     Always call this first at the start of every session.
-    Returns "pong" if connected to Revit, or an error if not.
-    After ping succeeds, read paracore://skills to discover available methods.
+
+    Reports one of four states, each needing a different fix:
+      * connected                     — safe to proceed
+      * server up, no document        — Revit is open but no project is loaded
+      * Revit running, no connection  — the in-Revit Paracore server is toggled off
+      * Revit not running             — start Revit
+
+    Returns the quick-start cheat sheet ONLY when genuinely connected. If this reports
+    NO CONNECTION, do not attempt any Revit operation — every call will fail. Tell the
+    user what to fix and call ping again.
     """
     _SESSION.record_ping()
-    return "pong — Paracore MCP server connected to Revit. Read paracore://skills next to discover available methods."
+    return ping_impl()
+
+
+@mcp.tool()
+def get_context() -> str:
+    """
+    Get the current Revit context: project, active view, current selection, and levels.
+
+    Call this early, right after ping. Without it you do not know which view is active,
+    what the user has selected, or which levels exist — and 'the walls' or 'this level'
+    in a request will be guesses.
+
+    Use the returned element Ids directly with execute_dynamic_query or explore_revit_data.
+    Levels include their elevations, so you can place or filter by height without a
+    separate query.
+
+    Cheap and read-only. No arguments.
+    """
+    _SESSION.record_discovery()
+    return get_context_report()
+
+
+@mcp.tool()
+def pick_object(selection_type: str = "Element", category_filter: str = "") -> str:
+    """
+    Ask the user to click an element in Revit, and get that element back.
+
+    Use when the request refers to something by pointing rather than by name — "this wall",
+    "the column I have open", "select the one I mean". Faster and less ambiguous than
+    asking the user to describe an element or read out an Id.
+
+    BLOCKS until the user picks or presses Escape (up to ~2 minutes). Revit's UI is held
+    during the pick, so tell the user to click in Revit before calling this, or they will
+    not know to act.
+
+    Args:
+        selection_type: "Element" (default), "Face", or "Edge".
+        category_filter: optional Revit category name to restrict what can be picked,
+            e.g. "Walls", "Doors", "Structural Columns".
+
+    Returns the picked element's Id, or a clear message if the user cancelled.
+    """
+    _SESSION.record_discovery()
+    return pick_object_report(selection_type, category_filter)
 
 
 @mcp.tool()
@@ -170,14 +232,18 @@ def _explore_revit_data(csharp_code: str, justification: str) -> str:
     (.GetStr, .WhereParam, .GroupByParam, .Table, etc.) over raw LINQ and
     FilteredElementCollector.
 
-    OUTPUT: Summarized results — tables show first 5 rows + total count,
-    text output shows first 10 lines. Charts report their type. Empty results
-    return "No results found" with the query context.
+    OUTPUT: Summarized results — tables show up to 50 rows (all rows if the table is
+    that small or smaller) plus a total count, text output shows the first 20 lines.
+    Charts report their type. Empty results return "No results found" with the query
+    context. If a table is truncated you will be told how many rows were hidden.
 
     FAILURE: Returns a structured error with the error type, line number,
     and a suggested fix. Common failures: wrong parameter name (run
     search_schema first), missing Transact() around a foreach loop, or
     accidentally including write operations (SetVal, Delete) in read-only mode.
+
+    If a call reports REVIT IS BUSY, do not retry it. Wait for the running operation
+    to finish — a retry queues behind it and can wedge Revit.
     """
     return explore_revit_data(csharp_code, justification)
 
@@ -204,13 +270,18 @@ def _execute_dynamic_query(csharp_code: str, justification: str) -> str:
     DISPLAY: Always use .Table() for data, never foreach+Println loops.
     For .Select() tables, include Id as the first column.
 
-    OUTPUT: Summarized — tables (first 5 rows + total), text (first 10 lines),
-    charts (type reported). Write operations include a confirmation message.
+    OUTPUT: Summarized — tables (up to 50 rows, or every row if the table is that small
+    or smaller, plus a total), text (first 20 lines), charts (type reported). Write
+    operations include a confirmation message.
 
     FAILURE: Structured error with type, line number, and suggested fix.
-    Self-correct up to 3 times. Common failures: wrong parameter name,
-    missing Transact() on foreach, or trying to chain .Select() after
-    .GroupByParam() (chain .Table() directly instead).
+    Common failures: wrong parameter name, missing Transact() on foreach, or trying
+    to chain .Select() after .GroupByParam() (chain .Table() directly instead).
+
+    Fix the reported cause, then retry ONCE with the correction. Do not repeat an
+    identical call — if it failed once it will fail the same way. If a call reports
+    REVIT IS BUSY, do not retry at all: the retry queues behind the operation that is
+    still running and repeated retries can wedge Revit until it is restarted.
     """
     return execute_dynamic_query(csharp_code, justification)
 
@@ -245,10 +316,12 @@ def _search_schema(category_name: str) -> str:
 @mcp.tool()
 def _read_extension_methods() -> str:
     """
-    Returns the complete Paracore Extension Methods reference (~7,400 chars).
-    PREFER reading skill resources instead (skill://{name}/SKILL.md) — they
-    are smaller, operation-specific, and faster to load. Use this tool only
-    when you need the full catalog at once.
+    Returns the complete Paracore Extension Methods reference (~17,000 chars —
+    the whole catalog, not a summary).
+
+    PREFER reading skill resources instead (skill://{name}/SKILL.md) — a single
+    skill is 2–12 KB and covers one operation, so it is far cheaper than pulling
+    the full catalog. Use this tool only when you need everything at once.
 
     Call with NO arguments. Always returns the full catalog.
     """
@@ -320,6 +393,8 @@ _SKILL_DESCRIPTIONS: dict[str, str] = {
     "create-geometry":    "Creating new Revit elements — Wall.Create, Floor.Create, XYZ, CurveLoop, InputUnit",
     "identity-orientation": "Element identity and door/window data — FamilyName, Matches, RoomFrom, Handing",
     "materials-units":    "Materials, unit conversion, numeric helpers — InputUnit, OutputUnit, IsAlmostEqualTo",
+    "family-authoring":   "Creating and editing loadable families (.rfa) — NewFamilyDocument, EditFamily, extrusions, revolutions, sweeps, blends, FamilyManager parameters and types",
+    "massing-forms":      "Conceptual massing with Form objects — AddProfile, AddEdge, AddPath, FormUtils, loft forms, profile editing, adaptive components",
 }
 
 _SKILL_CACHE: dict[str, str] = {}

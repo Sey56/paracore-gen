@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+import subprocess
 from contextlib import contextmanager
 from typing import Optional
 
@@ -126,6 +127,92 @@ def get_status():
     except Exception as e:
         logging.error(f"An unexpected error occurred during gRPC GetStatus call: {e}")
         raise
+
+def is_revit_running() -> Optional[bool]:
+    """
+    Best-effort check whether a Revit process is running on this machine.
+
+    Why this exists: the gRPC endpoint is hosted by the Paracore server inside Revit.
+    When the server is toggled off, port 50051 stops answering — exactly as it does when
+    Revit is closed. gRPC alone therefore cannot tell "Revit is open but the server is off"
+    from "Revit is not running". A process check supplies the missing signal.
+
+    Returns:
+        True  — a Revit process is running
+        False — no Revit process found
+        None  — the check itself failed, so the caller must say "cannot tell" rather than guess
+    """
+    if os.name != "nt":
+        return None
+    try:
+        # CREATE_NO_WINDOW so a console window never flashes on the user's screen.
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        completed = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq Revit.exe", "/FO", "CSV", "/NH"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            startupinfo=startupinfo,
+            creationflags=0x08000000,
+        )
+        return "Revit.exe" in (completed.stdout or "")
+    except Exception as e:
+        logging.debug(f"Revit process check failed: {e}")
+        return None
+
+
+def probe_connection() -> dict:
+    """
+    Single honest answer to "can we actually talk to Revit right now?".
+
+    Distinguishes three states that gRPC alone cannot separate:
+      * connected                     — server reachable AND it has a live Revit document
+      * server_reachable, not connected — the endpoint answered but reports no document
+      * not reachable + Revit running — Revit is open but the Paracore server is off
+      * not reachable + no Revit      — Revit is not running
+
+    Deliberately does NOT call close_channel() on failure. The global channel carries
+    reconnect backoff options (see _GRPC_RECONNECT_OPTIONS); tearing it down on every
+    failed probe would defeat them and force a fresh channel per call.
+    """
+    server_reachable = False
+    paracore_connected = False
+    revit_install_path = ""
+    addin_server_path = ""
+    detail = ""
+
+    try:
+        with get_corescript_runner_stub() as stub:
+            response = stub.GetStatus(corescript_pb2.GetStatusRequest(), timeout=3)
+            server_reachable = True
+            paracore_connected = bool(response.paracore_connected)
+            revit_install_path = response.revit_install_path or ""
+            addin_server_path = response.addin_server_path or ""
+            if paracore_connected:
+                _revit_config.revit_install_path = revit_install_path
+                _revit_config.addin_server_path = addin_server_path
+    except grpc.RpcError as e:
+        if e.code() != grpc.StatusCode.UNAVAILABLE:
+            detail = f"{e.code()}: {e.details()}"
+            logging.error(format_grpc_error(e))
+    except Exception as e:
+        detail = str(e)
+        logging.error(f"GetStatus probe failed: {e}")
+
+    # If the server answered and reports a live document, Revit is definitionally running —
+    # no need to shell out to tasklist.
+    revit_process = True if paracore_connected else is_revit_running()
+
+    return {
+        "server_reachable": server_reachable,
+        "paracore_connected": paracore_connected,
+        "revit_process": revit_process,
+        "revit_install_path": revit_install_path,
+        "addin_server_path": addin_server_path,
+        "detail": detail,
+    }
+
 
 def get_model_categories():
     """
@@ -590,9 +677,13 @@ def batch_update_element_parameters(updates: list):
             "error_message": f"Unexpected error: {str(e)}"
         }
 
-def pick_object(selection_type: str, category_filter: str = None):
+def pick_object(selection_type: str, category_filter: str = None, timeout: float = 120):
     """
     Calls the gRPC service to let the user pick an object in Revit.
+
+    This BLOCKS Revit's UI thread until the user clicks (or cancels). The timeout is a
+    backstop so a tool call cannot hang forever if the user walks away — Revit returns
+    cancelled=True when the user presses Escape, which is the normal exit path.
     """
     logging.info(f"Attempting to pick object (Type: {selection_type}, Filter: {category_filter}) via gRPC.")
     try:
@@ -601,7 +692,7 @@ def pick_object(selection_type: str, category_filter: str = None):
                 selection_type=selection_type,
                 category_filter=category_filter if category_filter else ""
             )
-            response = stub.PickObject(request)
+            response = stub.PickObject(request, timeout=timeout)
             return {
                 "value": response.value,
                 "is_success": response.is_success,
@@ -615,6 +706,16 @@ def pick_object(selection_type: str, category_filter: str = None):
                 "is_success": False,
                 "cancelled": False,
                 "error_message": GRPC_UNAVAILABLE_MSG
+            }
+        if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+            return {
+                "value": "",
+                "is_success": False,
+                "cancelled": True,
+                "error_message": (
+                    f"No pick within {timeout:.0f}s — nothing was selected. Ask the user to "
+                    f"pick an element in Revit, or press Escape to cancel deliberately."
+                )
             }
         logging.error(format_grpc_error(e))
         return {
@@ -793,6 +894,10 @@ def execute_repl(code: str, session_id: str, license_tier: str = "free",
         timeout: gRPC deadline in seconds. Bounded so a stuck Revit cannot block
             a tool forever; callers running LONG jobs (e.g. the bundled
             GetAllTakeoffs export) pass a larger value.
+            ⚠ The 120 s default is TOO SMALL for a full takeoff — MEASURED ~280 s
+            (2026-09-30). A user-typed REPL command goes through
+            rap-server's execute_repl_logic, which passes 600 s; keep that in
+            mind before lowering anything here.
     """
     try:
         with get_corescript_runner_stub() as stub:
@@ -820,9 +925,31 @@ def execute_repl(code: str, session_id: str, license_tier: str = "free",
             return {"is_success": False, "output": "", "error_message": GRPC_UNAVAILABLE_MSG,
                     "user_rejected": False, "read_only_violation": False}
         if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+            # The old text said only "Revit did not respond… It is likely busy, or showing a
+            # modal dialog" — actively misleading when the script simply ran LONG. MEASURED
+            # 2026-09-30: a full finishing takeoff needs ~280 s (engine timings, of which
+            # collector-total is 273.3 s), so a 120 s deadline could never have returned it.
+            # The deadline also does NOT cancel the work: ReplHandler runs the script on the
+            # Revit UI thread and AddinBridgeService.RelayTaskAsync ignores CancellationToken,
+            # so Revit stays busy after this error appears.
             return {"is_success": False, "output": "",
-                    "error_message": "Revit did not respond within 120s — the model may be busy, "
-                                     "or Revit is showing a dialog. Try again.",
+                    "error_message": (
+                        f"Revit did not answer within {timeout:.0f}s.\n\n"
+                        "TWO DIFFERENT CAUSES — they need opposite responses:\n"
+                        "  - Revit is showing a dialog, or is otherwise blocked. Look at the "
+                        "Revit window and clear it.\n"
+                        "  - The script is simply LONG. A full finishing takeoff measures "
+                        "~280 s, so it cannot fit inside a short deadline. This is a deadline "
+                        "miss, not a failure.\n\n"
+                        "IMPORTANT: this deadline does NOT stop the script. Revit runs it on "
+                        "its UI thread and cannot be interrupted, so it may still be working "
+                        "and may still finish — wait for Revit to become responsive again "
+                        "before doing anything else.\n\n"
+                        "DO NOT RETRY THIS CALL. Revit's API is single-threaded — a retry queues "
+                        "behind the request that is still running and makes the stall worse. "
+                        "If the script is legitimately long, raise the timeout for that call "
+                        "instead of re-sending it."
+                    ),
                     "user_rejected": False, "read_only_violation": False}
         logging.error(format_grpc_error(e))
         return {"is_success": False, "output": "", "error_message": f"gRPC Error: {e.details()}",

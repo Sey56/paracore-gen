@@ -10,7 +10,10 @@ import, the module fails LOUD at import time — not silently at runtime.
 """
 
 import logging
+import threading
 import time
+from contextlib import contextmanager
+
 from grpc_client import execute_repl
 from mcp_core.metrics import record_tool_call
 
@@ -20,6 +23,7 @@ from mcp_core.tool_helpers import (
     check_paracore_compliance,
     check_dangerous_patterns,
     check_suspicious_param_names,
+    lint_paracore_conventions,
     summarize_execution_result,
     format_execution_error,
     search_extension_methods,
@@ -56,6 +60,64 @@ class _SessionState:
         return None
 
 _SESSION = _SessionState()
+
+
+# ── Single-flight guard — retry-storm protection ─────────────────────────────
+# Revit's API is single-threaded. If a client times out and retries while the original
+# request is STILL EXECUTING, the retry queues behind it. Repeat that and the queue grows
+# until Revit has to be restarted — this is the documented failure mode of Autodesk's own
+# Revit MCP server ("only a full restart clears it"), triggered by an impatient client that
+# assumes failure at ~30s.
+#
+# We do NOT queue. A second concurrent request fails fast with an explicit "do not retry"
+# instruction, so the client stops instead of piling on. A refusal is cheap; a wedged Revit
+# is not.
+
+_EXEC_LOCK = threading.Lock()
+_EXEC_STARTED_AT: float | None = None
+_EXEC_LABEL: str = ""
+
+
+class RevitBusy(Exception):
+    """Raised when a request arrives while another is still executing in Revit."""
+
+    def __init__(self, label: str, elapsed: float):
+        self.label = label
+        self.elapsed = elapsed
+        super().__init__(f"{label} running for {elapsed:.1f}s")
+
+
+@contextmanager
+def single_flight(label: str):
+    """Allow exactly one in-flight Revit execution. Refuse (never queue) a second."""
+    global _EXEC_STARTED_AT, _EXEC_LABEL
+
+    if not _EXEC_LOCK.acquire(blocking=False):
+        started = _EXEC_STARTED_AT if _EXEC_STARTED_AT is not None else time.perf_counter()
+        raise RevitBusy(_EXEC_LABEL or "a previous request", time.perf_counter() - started)
+
+    _EXEC_STARTED_AT = time.perf_counter()
+    _EXEC_LABEL = label
+    try:
+        yield
+    finally:
+        _EXEC_STARTED_AT = None
+        _EXEC_LABEL = ""
+        _EXEC_LOCK.release()
+
+
+def busy_message(exc: RevitBusy) -> str:
+    """The explicit 'do not retry' signal. Deliberately blunt — the client must stop."""
+    return (
+        "REVIT IS BUSY — request refused. Nothing was executed.\n\n"
+        f"'{exc.label}' has been running for {exc.elapsed:.1f}s and has not returned yet.\n\n"
+        "DO NOT RETRY. Revit's API is single-threaded, so a retry queues behind the request "
+        "that is still running, and repeated retries can wedge Revit until it is restarted.\n\n"
+        "What to do instead:\n"
+        "  1. Wait for the current operation to finish.\n"
+        "  2. If it never finishes, ask the user to check Revit for a modal dialog.\n"
+        "  3. Then confirm Revit responds again with a small query before continuing."
+    )
 
 
 # ── Shared messages ───────────────────────────────────────────────────────
@@ -123,7 +185,8 @@ def explore_revit_data(
     """
     Execute a READ-ONLY C# snippet in Revit for schema/data discovery.
 
-    Results are summarized: first 5 table rows, first 10 text lines, + totals.
+    Results are summarized: tables show up to 50 rows (every row if the table is that
+    small or smaller) plus a total count; text output shows the first 20 lines.
     BEFORE WRITING ANY C#: read paracore://system-prompt for the method catalog.
 
     PARACORE-FIRST: Use extension methods (.GetStr, .GetNum, .WhereParam,
@@ -139,15 +202,24 @@ def explore_revit_data(
 
     param_warning = check_suspicious_param_names(csharp_code)
     suspicious_count = 1 if param_warning else 0
+    # Advisory only — never blocks. Cheap regex pass, no round-trip cost.
+    lint_note = lint_paracore_conventions(csharp_code)
     _SESSION.record_discovery()
     logger.info(f"Exploring Revit data: {justification}")
     try:
-        result = execute_repl(csharp_code, session_id,
-                              execution_mode="read_only", source=source)
+        with single_flight(justification or "an explore request"):
+            result = execute_repl(csharp_code, session_id,
+                                  execution_mode="read_only", source=source)
         duration_ms = (time.perf_counter() - t0) * 1000
         record_tool_call("explore_revit_data", result.get("is_success", False),
-                         duration_ms, suspicious_params=suspicious_count)
-        return param_warning + handle_execution_result(result)
+                         duration_ms, suspicious_params=suspicious_count,
+                         lint_notes=1 if lint_note else 0)
+        return param_warning + (lint_note or "") + handle_execution_result(result)
+    except RevitBusy as busy:
+        duration_ms = (time.perf_counter() - t0) * 1000
+        record_tool_call("explore_revit_data", False, duration_ms, refused_busy=True)
+        logger.warning(f"Refused concurrent explore request: {busy}")
+        return busy_message(busy)
     except Exception as e:
         duration_ms = (time.perf_counter() - t0) * 1000
         record_tool_call("explore_revit_data", False, duration_ms)
@@ -164,7 +236,8 @@ def execute_dynamic_query(
 ) -> str:
     """
     Execute C# in Revit (read or modify). The user's final action.
-    Results are summarized. SELF-CORRECTION: retry up to 3 times on errors.
+    Results are summarized. SELF-CORRECTION: fix the reported cause, then retry ONCE.
+    Repeating an identical call is pointless — it fails the same way.
 
     BEFORE WRITING ANY C#: call the read_extension_methods tool (NOT inside C# —
     it's a separate MCP tool call) to look up method syntax. The catalog in your
@@ -190,6 +263,8 @@ def execute_dynamic_query(
 
     param_warning = check_suspicious_param_names(csharp_code)
     suspicious_count = 1 if param_warning else 0
+    # Advisory only — never blocks. Cheap regex pass, no round-trip cost.
+    lint_note = lint_paracore_conventions(csharp_code)
     _SESSION.record_modification()
 
     # ── Workflow guard: warn if no discovery happened first ──────────────
@@ -215,17 +290,24 @@ def execute_dynamic_query(
             + "Use .Count() first to check how many elements will be affected.\n\n"
         )
 
-    prefix = param_warning + (workflow_warning or "") + bulk_msg
+    prefix = param_warning + (lint_note or "") + (workflow_warning or "") + bulk_msg
 
     logger.info(f"Executing dynamic query: {justification}")
     try:
-        result = execute_repl(csharp_code, session_id, source=source)
+        with single_flight(justification or "a write request"):
+            result = execute_repl(csharp_code, session_id, source=source)
         duration_ms = (time.perf_counter() - t0) * 1000
         record_tool_call("execute_dynamic_query", result.get("is_success", False),
                          duration_ms, suspicious_params=suspicious_count,
                          workflow_warning=bool(workflow_warning),
-                         bulk_write_detected=bool(bulk_warnings))
+                         bulk_write_detected=bool(bulk_warnings),
+                         lint_notes=1 if lint_note else 0)
         return prefix + handle_execution_result(result)
+    except RevitBusy as busy:
+        duration_ms = (time.perf_counter() - t0) * 1000
+        record_tool_call("execute_dynamic_query", False, duration_ms, refused_busy=True)
+        logger.warning(f"Refused concurrent write request: {busy}")
+        return prefix + busy_message(busy)
     except Exception as e:
         duration_ms = (time.perf_counter() - t0) * 1000
         record_tool_call("execute_dynamic_query", False, duration_ms)
@@ -278,11 +360,9 @@ def read_extension_methods(query: str = "") -> str:
     return doc[:15000]
 
 
-def ping() -> str:
-    """Diagnostic tool to verify the server is alive and responding.
-    Returns 'pong' + a quick-start cheat sheet that primes the LLM context."""
-    return """pong
-
+# Cheat sheet is shown ONLY when we are genuinely connected. It is useless — and
+# actively misleading — when there is no connection to Revit.
+_PING_CHEATSHEET = """
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PARACORE QUICK-START — Read before writing any code
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -320,9 +400,166 @@ FORBIDDEN — these raw Revit API patterns will be REJECTED:
   foreach+Println loops for data display (use .Table())"""
 
 
+def ping() -> str:
+    """
+    Verify the server is alive AND that Revit is genuinely reachable.
+
+    Three failure states are distinguished because they need different fixes:
+      * connected                — server up, live document
+      * server up, no document   — Revit is open but no project is loaded
+      * not reachable            — Revit closed, or the in-Revit server is toggled off
+
+    gRPC alone cannot separate "Revit closed" from "server toggled off" — both close
+    port 50051. A Revit process check supplies the missing signal.
+    """
+    from grpc_client import probe_connection
+
+    probe = probe_connection()
+
+    if probe["paracore_connected"]:
+        header = "pong — connected to Revit."
+        if probe["revit_install_path"]:
+            header += f"\n  Revit: {probe['revit_install_path']}"
+        header += "\n\nNext: call get_context to learn the active view, the current selection and the project levels."
+        return header + "\n" + _PING_CHEATSHEET
+
+    revit = probe["revit_process"]
+    if probe["server_reachable"]:
+        reason = (
+            "The Paracore server is reachable but reports NO active Revit document. "
+            "Open a project in Revit."
+        )
+    elif revit is True:
+        reason = (
+            "Revit IS running, but nothing is answering on localhost:50051. The in-Revit "
+            "Paracore server is most likely toggled OFF — turn it on in the Paracore panel "
+            "inside Revit."
+        )
+    elif revit is False:
+        reason = "Revit is NOT running. Start Revit and open a project."
+    else:
+        reason = (
+            "Nothing is answering on localhost:50051, and the Revit process check could not "
+            "run, so the cause cannot be determined from here."
+        )
+
+    detail = f"\n  Server detail: {probe['detail']}" if probe["detail"] else ""
+
+    return (
+        "NO CONNECTION TO REVIT.\n\n"
+        f"{reason}{detail}\n\n"
+        "Do NOT attempt any Revit operation until this is resolved — every call will fail. "
+        "Tell the user what to fix, then call ping again."
+    )
+
+
 def get_globals() -> str:
     """Return the complete globals + pre-imported namespaces reference.
     Single source of truth: reads from mcp_core/prompts/globals.md."""
     from mcp_core.prompt_assembler import get_section
     return get_section("globals.md")
+
+
+# Internal Revit length unit is feet. Elevations arrive raw, so convert for display.
+_FT_TO_M = 0.3048
+_MAX_SELECTION_LISTED = 10
+
+
+def get_context_report() -> str:
+    """
+    Current Revit context: project, active view, selection, levels.
+
+    Cheap, and the agent is blind without it — nothing else in the tool surface reveals
+    which view is active or what the user has selected.
+    """
+    from grpc_client import get_context
+
+    try:
+        ctx = get_context()
+    except Exception as e:
+        logger.error(f"get_context failed: {e}")
+        return (
+            f"Could not read the Revit context: {e}\n\n"
+            "Revit is probably not reachable. Call ping to find out why."
+        )
+
+    out: list[str] = []
+
+    info = ctx.get("project_info")
+    if info:
+        name = info.get("name") or "(unnamed)"
+        number = info.get("number") or "-"
+        title = info.get("title") or ""
+        out.append(f"Project:     {name}  ({number}){'  — ' + title if title else ''}")
+        out.append(f"File:        {info.get('file_path') or '(not saved)'}")
+        workshared = "workshared" if info.get("is_workshared") else "not workshared"
+        out.append(f"User:        {info.get('username') or '-'}  [{workshared}]")
+    else:
+        out.append("Project:     (project info unavailable)")
+
+    out.append("")
+    out.append(
+        f"Active view: {ctx.get('active_view_name') or '(none)'}"
+        f"  [{ctx.get('active_view_type') or '?'}"
+        f", scale 1:{ctx.get('active_view_scale') or '?'}"
+        f", {ctx.get('active_view_detail_level') or '?'} detail]"
+    )
+
+    count = ctx.get("selection_count") or 0
+    if count:
+        out.append("")
+        out.append(f"Selection:   {count} element(s)")
+        for item in (ctx.get("selected_elements") or [])[:_MAX_SELECTION_LISTED]:
+            out.append(f"  Id {item.get('id')}  {item.get('category')}")
+        if count > _MAX_SELECTION_LISTED:
+            out.append(f"  ... and {count - _MAX_SELECTION_LISTED} more")
+    else:
+        out.append("")
+        out.append("Selection:   nothing selected")
+
+    levels = ctx.get("levels") or []
+    if levels:
+        out.append("")
+        out.append(f"Levels ({len(levels)}):")
+        for lvl in levels:
+            elev = lvl.get("elevation")
+            elev_str = f"{elev * _FT_TO_M:.3f} m" if isinstance(elev, (int, float)) else "?"
+            out.append(f"  {lvl.get('name')}   (Id {lvl.get('id')})   elevation {elev_str}")
+
+    return "\n".join(out)
+
+
+def pick_object_report(selection_type: str = "Element", category_filter: str = "") -> str:
+    """
+    Let the user click an element in Revit and hand it back to the agent.
+
+    Blocks until the user picks or cancels. Revit's UI thread is held during the pick,
+    which is expected for an interactive selection.
+    """
+    from grpc_client import pick_object
+
+    result = pick_object(selection_type, category_filter or None)
+
+    if result.get("cancelled"):
+        return (
+            "The user cancelled the pick (or nothing was selected in time). "
+            "Nothing was picked — ask what they would like to select, or pick again."
+        )
+    if not result.get("is_success"):
+        return f"Pick failed: {result.get('error_message', 'unknown error')}"
+
+    value = (result.get("value") or "").strip()
+    if not value:
+        return "The pick succeeded but returned no value."
+
+    try:
+        element_id = int(value)
+    except ValueError:
+        return f"User picked: {value}"
+
+    return (
+        f"User picked element Id {element_id}.\n\n"
+        f"Resolve it in a query with id.ToElement(Doc), or read it with "
+        f'GetElements(...).WhereParam("Id", "{element_id}").'
+    )
 

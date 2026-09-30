@@ -31,6 +31,8 @@ def record_tool_call(
     bulk_write_detected: bool = False,
     suspicious_params: int = 0,
     param_blocked: bool = False,
+    refused_busy: bool = False,
+    lint_notes: int = 0,
 ):
     """Record a single tool call with outcome and guardrail triggers."""
     entry = {
@@ -42,6 +44,8 @@ def record_tool_call(
         "bulk_write_detected": bulk_write_detected,
         "suspicious_params": suspicious_params,
         "param_blocked": param_blocked,
+        "refused_busy": refused_busy,
+        "lint_notes": lint_notes,
         "timestamp": time.time(),
     }
     _metrics[tool_name].append(entry)
@@ -64,6 +68,8 @@ def summarize() -> dict:
         warnings = sum(1 for e in entries if e["workflow_warning"])
         bulk = sum(1 for e in entries if e["bulk_write_detected"])
         susp = sum(1 for e in entries if e["suspicious_params"] > 0)
+        refused = sum(1 for e in entries if e.get("refused_busy"))
+        linted = sum(1 for e in entries if e.get("lint_notes"))
         durations = [e["duration_ms"] for e in entries]
 
         result["tools"][tool_name] = {
@@ -73,6 +79,8 @@ def summarize() -> dict:
             "workflow_warnings": warnings,
             "bulk_write_detections": bulk,
             "suspicious_param_warnings": susp,
+            "busy_refusals": refused,
+            "calls_with_lint_notes": linted,
             "p50_ms": _percentile(durations, 50),
             "p95_ms": _percentile(durations, 95),
         }
