@@ -1,6 +1,6 @@
 # Paracore Method Skills
 
-Nine operation-based skills. Read `query-filter` first (always needed), then pull others as the task demands.
+Eleven operation-based skills. Read `query-filter` first (always needed), then pull others as the task demands.
 
 ## query-filter
 Element retrieval, filtering, and sorting.
@@ -56,6 +56,18 @@ Materials, unit conversion, numeric helpers.
 
 Materials/Table, MaterialNames, GetMaterialNames, WhereMaterial/WhereMaterialNot filters, InputUnit (human to feet), OutputUnit (feet to human), FormatUnit, FormatValueOnly, RoundTo, accepted unit strings table, precision-aware comparisons (IsAlmostEqualTo, AlmostZero, IsLessThan, IsGreaterThan, IsPositive, IsNegative).
 
+## family-authoring
+Creating and editing loadable families (.rfa).
+**When:** "Make a family", "build a parametric profile", "edit this door family", any `.rfa` work.
+
+Why `Doc.FamilyCreate` / `Doc.FamilyManager` THROW on a project document (they do not return null), the two routes to a family document (NewFamilyDocument / EditFamily), verified family template paths, the doc-access Transact overload, the one-transaction-per-build speed rule, CurveArrArray/CurveArray/ReferenceArray/SketchPlane/Plane plumbing, all 30 FamilyItemFactory New* methods with signatures, all 40 FamilyManager methods (types, parameters, formulas, instance/type, association, locking), SaveAs/LoadFamily.
+
+## massing-forms
+Conceptual massing with Form objects.
+**When:** "Conceptual mass", "loft", "revolve a profile", "adaptive component", any Form work.
+
+That massing is family authoring with the Conceptual Mass template, the six form creators (NewLoftForm, NewExtrusionForm, NewRevolveForms, NewSweptBlendForm, NewFormByCap, NewFormByThickenSingleSurface) and why they take References rather than Curves, ReferenceArrayArray plumbing, all 47 Form methods (profiles, edges, paths, Move/Rotate/ScaleProfile, constraints, offsets, rehost), reference classification helpers (IsEdgeReference etc.), FormUtils.DissolveForms and why it takes ElementIds, FormArray, adaptive components.
+
 ## Typical Usage Patterns
 
 **Simple query** ("list all doors on Level 1"):
@@ -78,3 +90,9 @@ query-filter + identity-orientation + display-visualize
 
 **Material query** ("what material are these walls?"):
 query-filter + materials-units + display-visualize
+
+**Family creation** ("make a parametric desk family"):
+family-authoring + write-modify (for parameters) + display-visualize
+
+**Conceptual mass** ("loft this profile into a mass"):
+massing-forms + family-authoring (for the template and transaction rules) + display-visualize

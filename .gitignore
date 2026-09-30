@@ -10,6 +10,8 @@ __pycache__/
 .vscode/
 .idea/
 .claude/
+# Agent state (session memory + skills) — local only. Same rule as paracore-pro.
+.workbuddy-ai/
 
 # OS
 .DS_Store
@@ -22,3 +24,5 @@ build/
 *.log
 version-info.txt
 graphify-out/
+# Transient REPL process capture — regenerated on demand, never source.
+.repl_proc.txt
