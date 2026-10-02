@@ -34,14 +34,21 @@ See the **family-authoring** skill for the template layout, the transaction rule
 
 ## Transactions — ONE per build
 
+⚠⚠ **`Transact()` CANNOT target a mass document. Use `Transaction` directly.**
+
+`ExecutionGlobals.Transact` always calls `Tx.Transact(Doc, …)`, so even the `Action<Document>`
+overload hands you the **project**, not the mass document. Massing is family authoring (the form
+creators live on `FamilyItemFactory`), so this is the same trap as in **family-authoring** — read
+that skill's transaction section. Build the transaction yourself:
+
 ```csharp
-Transact("Build mass", d => { /* d = the mass document */ });
+var tx = new Transaction(massDoc, "Build mass");
+tx.Start();
+// … reference points, curves, forms …
+var status = tx.Commit();      // check TransactionStatus
 ```
 
-`Transact("label", () => {...})` targets the **active** document. Use the doc-access overload
-for a mass document you opened separately.
-
-**SPEED RULE.** Every `Transact()` costs a regeneration and an undo entry. Build the whole mass
+**SPEED RULE.** Every transaction costs a regeneration and an undo entry. Build the whole mass
 in one block. Creating a form per transaction, then editing it in more transactions, is the
 slow path — do it in one pass where you can.
 
@@ -81,22 +88,25 @@ Document massDoc = UIApp.Application.NewFamilyDocument(
 
 double w = 6000.InputUnit("mm"), d = 4000.InputUnit("mm");
 
-Transact("Loft mass", doc => {
-    // 1. Reference points defining the base profile
-    var p0 = doc.FamilyCreate.NewReferencePoint(new XYZ(0, 0, 0));
-    var p1 = doc.FamilyCreate.NewReferencePoint(new XYZ(w, 0, 0));
-    var p2 = doc.FamilyCreate.NewReferencePoint(new XYZ(w, d, 0));
-    var p3 = doc.FamilyCreate.NewReferencePoint(new XYZ(0, d, 0));
+var tx = new Transaction(massDoc, "Loft mass");
+tx.Start();
 
-    // 2. Curves between them
-    doc.FamilyCreate.NewCurveByPoints(new ReferencePointArray());
-    // ... append points to the ReferencePointArray first, then call NewCurveByPoints
+// 1. Reference points defining the base profile
+var p0 = massDoc.FamilyCreate.NewReferencePoint(new XYZ(0, 0, 0));
+var p1 = massDoc.FamilyCreate.NewReferencePoint(new XYZ(w, 0, 0));
+var p2 = massDoc.FamilyCreate.NewReferencePoint(new XYZ(w, d, 0));
+var p3 = massDoc.FamilyCreate.NewReferencePoint(new XYZ(0, d, 0));
 
-    // 3. Loft the profile
-    // var profiles = new ReferenceArrayArray();
-    // profiles.Append(<ReferenceArray of the profile's curves/edges>);
-    // doc.FamilyCreate.NewLoftForm(true, profiles);
-});
+// 2. Curves between them
+massDoc.FamilyCreate.NewCurveByPoints(new ReferencePointArray());
+// ... append points to the ReferencePointArray first, then call NewCurveByPoints
+
+// 3. Loft the profile
+// var profiles = new ReferenceArrayArray();
+// profiles.Append(<ReferenceArray of the profile's curves/edges>);
+// massDoc.FamilyCreate.NewLoftForm(true, profiles);
+
+tx.Commit();
 ```
 
 The commented lines are deliberately left as scaffolding: **the step that turns points into a
@@ -200,9 +210,10 @@ ICollection<ElementId> DissolveForms(Document doc, ICollection<ElementId> elemen
 ```csharp
 var ids = new System.Collections.Generic.List<ElementId>();
 ids.Add(form.Id);
-Transact("Dissolve", d => {
-    if (FormUtils.CanBeDissolved(d, ids)) { FormUtils.DissolveForms(d, ids); }
-});
+var tx = new Transaction(massDoc, "Dissolve");
+tx.Start();
+if (FormUtils.CanBeDissolved(massDoc, ids)) { FormUtils.DissolveForms(massDoc, ids); }
+tx.Commit();
 ```
 
 Dissolving a form leaves the profiles and reference points behind, which is the normal way to

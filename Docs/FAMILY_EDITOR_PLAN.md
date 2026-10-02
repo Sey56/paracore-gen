@@ -210,10 +210,38 @@ whether the plan holds.
 
 | # | Item | Notes |
 |---|---|---|
-| B1 | **Spike: prove the loop on one form type** | `NewExtrusion` in a family doc, end to end: create → build → verify → load. Do this before building anything else. See §7 unknowns. |
+| B1 | **Spike: prove the loop on one form type** | ✅ **Phase 1 PASSED 2026-09-30** — create → build → verify → save → close, **732 ms**, on the live API from the REPL context. `LoadFamily` (Phase 2) still to do. See the result block below and §8. |
 | B2 | **Profile/plane prelude** | The helpers in Lever 3, once the spike has settled the shapes. |
 | B3 | **`preview` execution mode** | Run inside a transaction, capture a structured diff (created / modified old→new / deleted), `RollBack()`, report. Needs a deliberate rollback path — `Tx.cs` currently only rolls back on exception. Caveat to surface honestly: exports to disk and family loads are **not** rollbackable and must be reported as explicit non-rollbackable side effects. |
 | B4 | **Investigate per-call logging** | `Tx.cs:12,30,37,40,42,45,49` appends synchronously to `TxDebugLog.txt` on every transaction. `PrintCallbackDebug.txt` is at 4 MB and was written again during this session. Both are directly opposed to "must work fast". |
+
+#### B1 result — Phase 1, measured 2026-09-30
+
+Script: `spikes/b1_family_spike_phase1.cs`. Live Revit 2025, project
+`B+G+2 - KedirMohammed - Residential`, **project left unchanged** (doc count 1 → 1).
+
+| step | result | time |
+|:---|:---|---:|
+| `Application.NewFamilyDocument(Metric Generic Model.rft)` | OK, `IsFamilyDocument=True` | 414 ms |
+| `FamilyCreate.NewExtrusion(true, profile, sketchPlane, 3000mm)` | OK, `commit=Committed` | 137 ms |
+| bbox verification | **600 × 400 × 3000 mm — exact** | — |
+| `famDoc.SaveAs(%TEMP%\\b1_phase1_full.rfa)` | OK, 466,944 bytes | 411 ms |
+| `famDoc.Close(false)` | OK, docs back to 1 | ~100 ms |
+| **total** | | **732 ms** |
+
+**Three findings, all now fixed in the skills:**
+
+1. ⚠⚠ **`Transact()` cannot target a family document.** `ExecutionGlobals.Transact` always calls
+   `Tx.Transact(Doc, …)`, so the `Action<Document>` overload hands you the **project**. The first
+   spike attempt used it, called `d.FamilyCreate` on the project, and **stalled the REPL for the
+   full 120 s deadline** instead of failing cleanly. Use `new Transaction(famDoc, "…")` directly —
+   `Autodesk.Revit.DB` is pre-imported. **This was documented wrong in both new skills and is fixed.**
+2. **`NewExtrusion` returns `Extrusion`, whose base is `GenericForm` — not `Form`.** Declaring
+   `Form f = …` fails to compile (`CS0029`). The massing creators (`NewLoftForm` etc.) *do* return `Form`.
+3. The **create / build / save / close loop is cheap** (~1 s). The 120 s was never Revit; it was ours.
+
+**Still open in B1:** Phase 2 — `LoadFamily` back into the host project, and the `EditFamily`
+round-trip cost (unknowns 2 and 4 below).
 
 ### Track C — verification
 
@@ -435,15 +463,20 @@ the user to decide.
 
 ## 8. Open unknowns — resolve in the B1 spike, do not assume
 
-1. **Does `NewFamilyDocument` work from the MCP's REPL context?** It creates and closes
-   documents, which interacts with the Revit UI thread and the shim layer. Untested.
+1. ✅ **ANSWERED 2026-09-30 — YES, it works.** `Application.NewFamilyDocument(templatePath)`
+   returns a valid family document from the MCP's REPL context in **414 ms**
+   (`IsFamilyDocument=True`), and it can be built in, saved and closed from the same script.
+   The UI-thread concern was real but the answer is positive. **Caveat:** the transaction must be
+   a direct `new Transaction(famDoc, …)` — `Transact()` silently targets the project (see §5, B1).
 2. **Does `LoadFamily` back into the host project succeed from that context?** Same
-   concern, and it can fail if the family is open elsewhere.
+   concern, and it can fail if the family is open elsewhere. **Still open — this is Phase 2.**
 3. **Is in-place mass creation still available in Revit 2025 projects?** The massing
-   commands have moved around across recent releases. Do not assume — check.
+   commands have moved around across recent releases. Do not assume — check. **Still open.**
 4. **What is the real cost of `EditFamily` → modify → `LoadFamily`?** If the round-trip is
    slow, the whole family workflow needs a different shape (build in a new family doc, save
-   to disk, load once).
+   to disk, load once). **Still open**, but the build half is now known to be cheap:
+   create + build + save + close = **732 ms total**, so the round-trip cost lives in
+   `EditFamily`/`LoadFamily`, not in authoring.
 
 These four answers determine whether Track B2 is worth building as designed. The spike
 exists to answer them for the price of an afternoon.
