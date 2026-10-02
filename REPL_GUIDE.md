@@ -125,10 +125,12 @@ For the complete catalog with every overload and parameter pattern, see **[EXTEN
 | WhereParam / WhereMatches / WhereMaterial | [Collection: Filtering](EXTENSION_METHODS.md#9-collection-filtering) |
 | OrderByParam / GroupByParam / SumParam | [Collection: Sorting](EXTENSION_METHODS.md#10-collection-sorting) + [Grouping](EXTENSION_METHODS.md#11-collection-grouping--aggregation) |
 | SetParam (bulk write) | [Collection: Bulk Write](EXTENSION_METHODS.md#12-collection-bulk-write) |
-| Table / BarChart / PieChart / LineChart | [Global ScriptApi](EXTENSION_METHODS.md#16-global-scriptapi-methods) |
+| Table / BarGraph / PieGraph / LineGraph | [Global ScriptApi](EXTENSION_METHODS.md#16-global-scriptapi-methods) |
 | Select / Zoom / Isolate / Hide / Delete | [Element UI](EXTENSION_METHODS.md#8-element-revit-ui-actions) + [Collection UI](EXTENSION_METHODS.md#13-collection-revit-ui-actions) |
 | RoomFrom / RoomTo / Handing / StandardDoor | [Door/Window](EXTENSION_METHODS.md#5-element-specialized-doorwindow) |
+<!-- #PRO-ONLY-BEGIN Coordination quick link — Pro add-in only (CoordinationExtensions.cs) -->
 | AuditClashes / ClearClashHelpers | [Coordination](EXTENSION_METHODS.md#16-coordination--clash-detection) |
+<!-- #PRO-ONLY-END -->
 | InputUnit / OutputUnit / FormatUnit / ToMeters / precision comparisons | [Numeric & Unit Helpers](EXTENSION_METHODS.md#15-numeric--unit-helpers) |
 | BuiltInParams / CombinedParams / Peek / ReflectionProperties | [Element: Discovery](EXTENSION_METHODS.md#4-element-identity--discovery) |
 | Materials / Eco.GetCarbon / Eco.GetUValue | [Materials & Sustainability](EXTENSION_METHODS.md#6-element-materials--sustainability) |
@@ -224,8 +226,10 @@ Selection.Count     // Prints selection count
 | Export data to Pandas/Python | `.ToNotebook("Analytics")` |
 | Find a BIP name | `Selection[0].BuiltInParams().Table()` |
 | Debug a filter | `Selection[0].Peek()` |
+<!-- #PRO-ONLY-BEGIN Coordination recipes — Pro add-in only -->
 | Find intersections (Clashes) | `.AuditClashes("Pipes").Table()` |
 | Audit using tolerance        | `.AuditClashes("Pipes", 5.0).Table()` |
+<!-- #PRO-ONLY-END -->
 | Compare two lengths | `.IsAlmostEqualTo(target)` |
 
 ### 🚫 Do NOT
@@ -310,9 +314,11 @@ GetElements<Room>()
     })
     .ToNotebook("Room_Analysis")
 
+<!-- #PRO-ONLY-BEGIN Coordination sweep example — Pro add-in only -->
 // 🛡️ One-Click Coordination Sweep 🛡️
 GetElements("Walls")
     .AuditClashes("StructuralColumns")
     .Table()
+<!-- #PRO-ONLY-END -->
 ```
 ```

@@ -182,7 +182,7 @@ geometry faces, paint, compound layers, and STRUCTURAL_MATERIAL_PARAM. Use
 .BarGraph()  — bar chart (after GroupByParam with summed total)
 .PieGraph()  — pie chart (after GroupByParam with summed total)
 .LineGraph() — line chart
-.Show()      — zoom to elements in Revit view
+.Show()      — render data as a table (same as .Table(); NOT a zoom)
 ```
 NOTE: `.Bar()` does NOT exist — use `.BarGraph()`.
 

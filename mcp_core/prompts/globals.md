@@ -21,9 +21,9 @@ GetMagicNames()              → all targetable category/family/class names
 GetCategories()              → all project category names
 Transact(string, Action)     → wrap writes in a single undo transaction
 Table(object)                → render as interactive data grid
-BarChart(object) / BarGraph  → render bar chart
-PieChart(object) / PieGraph  → render pie chart
-LineChart(object)/LineGraph  → render line chart
+BarGraph(object)             → render bar chart
+PieGraph(object)             → render pie chart
+LineGraph(object)            → render line chart
 ```
 
 ## QUERY PATTERNS — use Paracore methods

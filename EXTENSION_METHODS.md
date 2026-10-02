@@ -2,7 +2,7 @@
 
 A comprehensive guide to every extension method available on Revit elements and collections in Paracore scripts. All methods are globally available in the REPL and in all scripts.
 
-Source files: `ElementExtensions.cs`, `ElementParamExtensions.cs`, `ElementWriteExtensions.cs`, `ElementDoorExtensions.cs`, `ElementDiscoveryExtensions.cs`, `ElementGeometryExtensions.cs`, `ElementUIExtensions.cs`, `CollectionAggregateExtensions.cs`, `CollectionWriteExtensions.cs`, `CollectionUIExtensions.cs`, `PipelineEnumerable.cs`, `UnitExtensions.cs`, `CoordinationExtensions.cs`, `NotebookExtensions.cs`, `ScriptApi.cs`, `Eco.cs`.
+Source files: `ElementExtensions.cs`, `ElementParamExtensions.cs`, `ElementWriteExtensions.cs`, `ElementDoorExtensions.cs`, `ElementDiscoveryExtensions.cs`, `ElementGeometryExtensions.cs`, `ElementUIExtensions.cs`, `CollectionAggregateExtensions.cs`, `CollectionWriteExtensions.cs`, `CollectionUIExtensions.cs`, `PipelineEnumerable.cs`, `UnitExtensions.cs`,<!-- #PRO-ONLY-BEGIN Pro-only sources; stripped from the free copy --> `CoordinationExtensions.cs`<!-- #PRO-ONLY-END -->, `NotebookExtensions.cs`, `ScriptApi.cs`<!-- #PRO-ONLY-BEGIN -->, `Eco.cs`<!-- #PRO-ONLY-END -->.
 
 > [!NOTE]
 > All extension methods work identically in the **REPL** and in **Gallery scripts**. They are standard C# extension methods available everywhere the engine runs.
@@ -52,7 +52,9 @@ Single-element: `GetElement("name-or-id")` | Discovery: `GetMagicNames()`, `GetC
 13. [Collection: Revit UI Actions](#13-collection-revit-ui-actions)
 14. [Collection: Notebook Export](#14-collection-notebook-export)
 15. [Numeric & Unit Helpers](#15-numeric--unit-helpers)
+<!-- #PRO-ONLY-BEGIN  Coordination & Clash Detection — Pro add-in only (CoordinationExtensions.cs). gen-engine-docs.py strips this region from the free-repo copy; do not remove the markers. -->
 16. [Coordination & Clash Detection](#16-coordination--clash-detection)
+<!-- #PRO-ONLY-END -->
 17. [Global ScriptApi Methods](#17-global-scriptapi-methods)
 18. [Complete Fluent Chain Examples](#18-complete-fluent-chain-examples)
 
@@ -440,6 +442,7 @@ x.IsPositive() / IsNegative()
 
 ---
 
+<!-- #PRO-ONLY-BEGIN  Coordination & Clash Detection — Pro add-in only (CoordinationExtensions.cs). gen-engine-docs.py strips this region from the free-repo copy; do not remove the markers. -->
 ## 16. Coordination & Clash Detection
 
 ```csharp
@@ -457,6 +460,8 @@ Doc.ClearClashHelpers()
 ```
 
 `.Table()` on clash results renders an interactive table AND creates visual helper geometry in the model.
+
+<!-- #PRO-ONLY-END -->
 
 ---
 
@@ -481,9 +486,9 @@ Parameters    // parameters from agent/UI context
 Println(message)          // print to console
 Table(object)             // render list as interactive table
 Table(elements)           // render elements (adapts columns to element kind)
-BarChart(data)            // bar chart
-PieChart(data)            // pie chart
-LineChart(data)           // line chart
+BarGraph(data)            // bar chart
+PieGraph(data)            // pie chart
+LineGraph(data)           // line chart
 Show("table", data)       // generic render
 ```
 
@@ -544,8 +549,11 @@ GetElements<StructuralColumn>("Structural Columns")
     .OrderByParamDesc("Volume")
     .Table()
 
-// Clash pipes against structure
+```
+<!-- #PRO-ONLY-BEGIN AuditClashes fluent example — Pro add-in only (CoordinationExtensions.cs); gen-engine-docs.py strips this from the free-repo copy -->
+```
 GetElements("Pipes")
     .AuditClashes("Structural Framing", "5mm")
     .Table()
 ```
+<!-- #PRO-ONLY-END -->

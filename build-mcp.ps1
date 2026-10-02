@@ -92,6 +92,7 @@ Push-Location $AgentRoot
     --add-data "EXTENSION_METHODS.md;." `
     --add-data "SKILLS.md;." `
     --add-data "mcp_core/skills;mcp_core/skills" `
+    --add-data "mcp_core/prompts;mcp_core/prompts" `
     mcp_server.py
 
 if ($LASTEXITCODE -ne 0) {
@@ -103,6 +104,35 @@ Pop-Location
 
 # 4. PyInstaller outputs to dist/ directly (we're running from $AgentRoot)
 $ExePath = Join-Path $AgentRoot "dist\$mcpName.exe"
+
+# ── 4b. GATE: every prompt the assembler reads at runtime must be IN the exe ──
+# prompt_assembler.py loads mcp_core/prompts/*.md at RUNTIME. When that directory
+# is absent from the bundle, _read() returns "[Prompt file not found: X]" for every
+# section, so build_prompt() ships a system prompt of pure placeholders while the
+# build reports success — the agent then has no API reference and nothing errors.
+# A gate must not silently skip (rule 3) and an empty scan must FAIL.
+#
+# ⚠ Do NOT search the exe's raw bytes: the PKG is compressed, so present text
+# returns 0 matches just like absent text. Extract with PyInstaller's own reader.
+Write-Host ''
+Write-Host 'Verifying bundled prompts...' -ForegroundColor Yellow
+$PromptSrc = Join-Path $AgentRoot 'mcp_core\prompts'
+$Expected = @(Get-ChildItem -Path $PromptSrc -Filter *.md -File -ErrorAction SilentlyContinue)
+if ($Expected.Count -eq 0) {
+    Write-Host 'BUILD GATE FAILED: no prompt files found in mcp_core/prompts — the' -ForegroundColor Red
+    Write-Host 'gate has lost its subject and cannot verify anything.' -ForegroundColor Red
+    exit 1
+}
+$Verify = Join-Path $AgentRoot 'spikes\verify_bundled_prompts.py'
+if (Test-Path $Verify) {
+    & $BuildPython $Verify $ExePath $PromptSrc
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host 'BUILD GATE FAILED: prompts are not correctly bundled.' -ForegroundColor Red
+        exit 1
+    }
+} else {
+    Write-Host "WARNING: $Verify missing; prompt bundling NOT verified." -ForegroundColor DarkYellow
+}
 
 Write-Host ''
 Write-Host '=================================' -ForegroundColor Green
