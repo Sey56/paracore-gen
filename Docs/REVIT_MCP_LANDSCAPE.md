@@ -235,16 +235,29 @@ The pattern: when the tool surface is large, add a *search* layer rather than lo
 | **Session-persistent REPL variables** | Multi-step work without re-establishing state. | Most competitors are stateless per call. |
 | **Anti-pattern compliance layer** | Nobody else rejects known-bad API usage before execution. | Unique. Needs sharpening, not removal. |
 
-### And one thing the research settles outright
+### And one thing the research settles — but not for the reason first given
 
 **No Revit MCP in the field models by driving the GUI.** Every capable server — including
-Autodesk's own — uses the API. hungpixi's threading section explains why: direct socket-thread
-writes cause *"immediate memory crashes"*, and everything must be marshalled through
-`ExternalEvent` into Revit's own idle loop.
+Autodesk's own — uses the API.
 
-That is external confirmation of the earlier recommendation: **computer use belongs as a
-camera, not a hand.** Reserve it for verification and for the UI-only corners (Family Editor
-sketch mode, dialog-gated operations).
+⚠⚠ **CORRECTED 2026-10-02.** This was originally justified by hungpixi's threading note (direct
+socket-thread writes cause *"immediate memory crashes"*, so everything must be marshalled through
+`ExternalEvent`). **That was a non-sequitur.** `ExternalEvent` is a constraint on calling the
+**Revit API** off Revit's UI thread. GUI automation never calls the API — it injects OS input
+events (`SendInput` / UIA) that arrive through Revit's own message loop, already on the UI thread.
+The threading model does not argue against GUI automation at all.
+
+The observation is also about where the field has *chosen to invest*, which is not the same claim
+as feasibility. **GUI-driving Revit is possible and demonstrated**; it is simply the wrong tool for
+production modelling, for reliability and precision reasons — error compounding over long horizons,
+no transaction/rollback handle, UI drift across Revit versions, and the fact that a takeoff's
+deliverable is a *number* an approximate click cannot produce. Full analysis and the benchmark
+evidence: **`REVIT_COMPUTER_USE_RESEARCH.md`**.
+
+The recommendation stands, on the correct basis: **computer use belongs as a camera, not a hand.**
+Reserve it for verification and for the UI-only corners (Family Editor sketch mode, dialog-gated
+operations) — and if it is ever built, make it **UIA-based rather than vision-based**, so controls
+are addressed by name instead of by coordinate.
 
 ---
 
@@ -311,8 +324,12 @@ The earlier plan's Track A/B/C/D ordering still holds, with these insertions:
 
 - Do not chase 100+ tools. The evidence says consolidation wins, and sprawl is the stated
   reason this project feels unmanageable.
-- Do not build GUI-driving modelling. Nobody in the field does it, and the threading model
-  explains why.
+- Do not build GUI-driving modelling. ⚠ **The original reason given ("the threading model explains
+  why") was wrong — see the correction in §5.** The reason to skip it is reliability and precision,
+  not impossibility: error compounds over a modelling-length horizon, there is no transaction to
+  roll back, the UI drifts across Revit versions and machines, and a takeoff needs an exact number
+  that an approximate click cannot produce. GUI stays a **camera** (verification, API-gap dialogs),
+  never a hand. Evidence: `REVIT_COMPUTER_USE_RESEARCH.md`.
 - Do not compete with Autodesk on their turf (Revit 2027 + Assistant). Compete on
   version breadth (2023–2027), client freedom (Claude, Cursor, anything MCP), the DSL, and
   parameter discovery.

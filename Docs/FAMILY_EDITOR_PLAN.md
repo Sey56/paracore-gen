@@ -312,6 +312,14 @@ skill-file mechanism. Loaded on demand, so it costs no context. **This is the st
 to "must work fast" that also reduces bloat** — the second time a family is built, the agent
 runs a procedure instead of writing code.
 
+**Implemented 2026-10-02, family-scoped — see
+[`FAMILY_ARTIFACT_WORKFLOW.md`](FAMILY_ARTIFACT_WORKFLOW.md).** The narrow slice of this track
+is now in force with **no MCP change**: a family's build script lives in
+`Documents\ParacoreFamilies\<FamilyName>\build.cs` and is the source of truth, with a generated
+`manifest.json` beside it so revisions are diffable and a `CHANGELOG.md` quoting each defect
+report. That establishes the shape this track would generalise — if it is built, those
+directories are its first entries.
+
 ### 6.4 Replace the regex blocklist with permission profiles
 
 Horizun filters the *tool set* by profile (`safe_write` 70 / `full_write` 79 / `unsafe_code` 80
@@ -338,9 +346,15 @@ the security boundary.
 - **Progressive disclosure stays.** Horizun cut `tools/list` by ~64 KB without dropping a single
   tool; the Grasshopper work independently built "tool scope control" to stop the LLM's
   attention scattering. Both arrived at our existing pattern.
-- **No GUI-driving modelling.** No Revit MCP in the field does it, and hungpixi's threading
-  analysis explains why (direct writes from a non-UI thread crash; everything marshals through
-  `ExternalEvent`). Computer use stays a camera.
+- **No GUI-driving modelling.** No Revit MCP in the field does it, and every capable server —
+  including Autodesk's own — uses the API. ⚠⚠ **CORRECTED 2026-10-02:** this was originally
+  justified by hungpixi's threading note (direct writes from a non-UI thread crash; everything
+  marshals through `ExternalEvent`). **That was a non-sequitur.** `ExternalEvent` constrains
+  calling the **Revit API** off Revit's UI thread; GUI automation never calls the API — it
+  injects OS input (`SendInput` / UIA) that arrives through Revit's own message loop, already on
+  the UI thread. **GUI-driving Revit is possible and demonstrated**; it is the wrong tool for
+  *reliability and precision* reasons, not a threading one. See `REVIT_MCP_LANDSCAPE.md` §5 and
+  `REVIT_COMPUTER_USE_RESEARCH.md`. Computer use stays a camera.
 
 ---
 
@@ -458,6 +472,51 @@ and the file re-verified clean. **Still present** in the sibling canonical copy 
 `paracore/EXTENSION_METHODS.md` (the public free repo), which `prompt_assembler._read_shared()`
 prefers in dev mode. That copy is a different repository and a public doc, so it was left for
 the user to decide.
+
+### D-MCP-6 — the `doc.` / `document.` HARD errors match the English word (FIXED)
+
+`_HARD_ERRORS` carried `(?<![.\w])doc\.` and `(?<![.\w])document\.` — no trailing guard. Both
+therefore match the ordinary **English word at the end of a sentence**, so any comment or string
+reading *"…the active document."* was **BLOCKED**.
+
+**Reproduced 2026-10-02**, writing `mcp_core/skills/family-authoring/build-template.cs`: the
+template was rejected on exactly two comments — `THROW on a project document.` and `always reads
+the ACTIVE document. In family work…`. Both are correct, useful comments about correct code.
+
+**Impact: high, and worse than a lint.** This is the *blocking* layer, so the cost is a
+round-trip that cannot be worked around by ignoring advice — the agent must guess which innocent
+word tripped it, with no indication that the trigger is prose rather than code. It is the same
+failure class as D-MCP-2, but on the tier where it does damage.
+
+**Fix:** added `(?=\w)` — a real member access (`document.SaveAs`, `doc.Delete`) still matches,
+prose does not. Regression-guarded in both directions by
+`spikes/verify_lint_narrowing.py`.
+
+⚠ **The compliance layer scans COMMENTS**, not just code. Worth knowing when writing any
+documented script.
+
+### D-MCP-7 — two lints fire on correct family-authoring code (FIXED)
+
+Both `_LINT_RULES` entries below matched constructs that family authoring **requires**:
+
+| rule | why it cannot be followed |
+|---|---|
+| `new FilteredElementCollector\(` | `GetElements<T>()` has **no document overload** — it always reads the ACTIVE document. Family work operates on a SECOND document (`NewFamilyDocument` / `EditFamily`), where the collector is the only option. |
+| `\.get_Parameter\(` | `get_Parameter(BuiltInParameter.X)` returns the **`Parameter` object**, which `GetStr`/`GetNum` cannot supply — and which family work needs for `GetAssociatedFamilyParameter` and `AssociateElementParameterToFamilyParameter`. |
+
+**Reproduced 2026-10-02** against `build-template.cs`: both fired, on the two lines that are the
+whole point of the template.
+
+**Impact:** moderate on its own, corrosive in aggregate — a lint that fires on correct code
+teaches the agent that lints are noise, which is precisely the habit the layer exists to prevent.
+
+**Fix:** narrowed both. The collector rule now matches only the active-document form
+(`(Doc)` or no argument); the `get_Parameter` rule now matches only the **by-name** form
+(`get_Parameter("Name")`). Both remain advisory. Regression-guarded by the same probe.
+
+**Status: D-MCP-6 and D-MCP-7 FIXED (2026-10-02)** in `mcp_core/tool_helpers.py`.
+⚠ Both are **bundled** (`paracore-mcp.spec:4`) → they do not reach the *running* MCP until the
+server is rebuilt and reinstalled.
 
 ---
 
