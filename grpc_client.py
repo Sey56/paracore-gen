@@ -352,6 +352,13 @@ def execute_script(script_content, parameters_json, compiled_assembly=None, sour
                 "internal_data": response.internal_data,
                 "pipeline_diagnostics": pipeline_diags,
                 "user_rejected": getattr(response, 'user_rejected', False),
+                # ⚠ WHO satisfied the [Confirm("WORD")] gate, if anyone:
+                #   "not_required" / "not_agent_run" / "user_confirmed" / "user_declined" / "unavailable"
+                #   "" means the run failed before the gate was reached.
+                # `getattr` (not `response.confirmation`) so this file still runs against an OLDER
+                # installed engine whose stub predates the field — an AttributeError here would turn
+                # a missing diagnostic into a failed call.
+                "confirmation": getattr(response, 'confirmation', ""),
             }
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.UNAVAILABLE:
@@ -363,6 +370,7 @@ def execute_script(script_content, parameters_json, compiled_assembly=None, sour
                     "structured_output": [],
                     "internal_data": "",
                     "user_rejected": False,
+                    "confirmation": "",
                 }
             logging.error(format_grpc_error(e))
             raise # Re-raise the gRPC error

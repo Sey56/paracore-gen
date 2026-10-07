@@ -2,7 +2,7 @@
 
 A comprehensive guide to every extension method available on Revit elements and collections in Paracore scripts. All methods are globally available in the REPL and in all scripts.
 
-Source files: `ElementExtensions.cs`, `ElementParamExtensions.cs`, `ElementWriteExtensions.cs`, `ElementDoorExtensions.cs`, `ElementDiscoveryExtensions.cs`, `ElementGeometryExtensions.cs`, `ElementUIExtensions.cs`, `CollectionAggregateExtensions.cs`, `CollectionWriteExtensions.cs`, `CollectionUIExtensions.cs`, `PipelineEnumerable.cs`, `UnitExtensions.cs`,<!-- #PRO-ONLY-BEGIN Pro-only sources; stripped from the free copy --> `CoordinationExtensions.cs`<!-- #PRO-ONLY-END -->, `NotebookExtensions.cs`, `ScriptApi.cs`<!-- #PRO-ONLY-BEGIN -->, `Eco.cs`<!-- #PRO-ONLY-END -->.
+Source files: `ElementExtensions.cs`, `ElementParamExtensions.cs`, `ElementWriteExtensions.cs`, `ElementDoorExtensions.cs`, `ElementDiscoveryExtensions.cs`, `ElementGeometryExtensions.cs`, `ElementUIExtensions.cs`, `CollectionAggregateExtensions.cs`, `CollectionWriteExtensions.cs`, `CollectionUIExtensions.cs`, `PipelineEnumerable.cs`, `UnitExtensions.cs`,<!-- #PRO-ONLY-BEGIN Pro-only sources; stripped from the free copy --> `CoordinationExtensions.cs`, `CurtainGridRepairExtensions.cs`<!-- #PRO-ONLY-END -->, `NotebookExtensions.cs`, `ScriptApi.cs`<!-- #PRO-ONLY-BEGIN -->, `Eco.cs`<!-- #PRO-ONLY-END -->.
 
 > [!NOTE]
 > All extension methods work identically in the **REPL** and in **Gallery scripts**. They are standard C# extension methods available everywhere the engine runs.
@@ -52,11 +52,12 @@ Single-element: `GetElement("name-or-id")` | Discovery: `GetMagicNames()`, `GetC
 13. [Collection: Revit UI Actions](#13-collection-revit-ui-actions)
 14. [Collection: Notebook Export](#14-collection-notebook-export)
 15. [Numeric & Unit Helpers](#15-numeric--unit-helpers)
-<!-- #PRO-ONLY-BEGIN  Coordination & Clash Detection — Pro add-in only (CoordinationExtensions.cs). gen-engine-docs.py strips this region from the free-repo copy; do not remove the markers. -->
+<!-- #PRO-ONLY-BEGIN  Pro-only engines — Clash Detection (CoordinationExtensions.cs) and Curtain Grid Repair (CurtainGridRepairExtensions.cs). gen-engine-docs.py strips this region from the free-repo copy; do not remove the markers. -->
 16. [Coordination & Clash Detection](#16-coordination--clash-detection)
+17. [Curtain Grid Repair](#17-curtain-grid-repair)
 <!-- #PRO-ONLY-END -->
-17. [Global ScriptApi Methods](#17-global-scriptapi-methods)
-18. [Complete Fluent Chain Examples](#18-complete-fluent-chain-examples)
+18. [Global ScriptApi Methods](#18-global-scriptapi-methods)
+19. [Complete Fluent Chain Examples](#19-complete-fluent-chain-examples)
 
 ---
 
@@ -442,7 +443,7 @@ x.IsPositive() / IsNegative()
 
 ---
 
-<!-- #PRO-ONLY-BEGIN  Coordination & Clash Detection — Pro add-in only (CoordinationExtensions.cs). gen-engine-docs.py strips this region from the free-repo copy; do not remove the markers. -->
+<!-- #PRO-ONLY-BEGIN  Pro-only engines — Clash Detection (CoordinationExtensions.cs) and Curtain Grid Repair (CurtainGridRepairExtensions.cs). gen-engine-docs.py strips this region from the free-repo copy; do not remove the markers. -->
 ## 16. Coordination & Clash Detection
 
 ```csharp
@@ -461,11 +462,88 @@ Doc.ClearClashHelpers()
 
 `.Table()` on clash results renders an interactive table AND creates visual helper geometry in the model.
 
+---
+
+## 17. Curtain Grid Repair
+
+A curtain wall's grid spacing is a **type** parameter, and Revit offers no minimum. Set "Vertical Grid = Fixed Distance 900 mm" so a 900 mm door fits between two mullions, and Revit lays the lines out at 900, 1800, 2700 … and leaves whatever is **left over** as the last bay. On a 3100 mm wall that last bay is 400 mm — a mullion 400 mm from the jamb — and if the remainder rounds to zero you get two **coincident** grid lines, two mullions in the same place, and a zero-width cell.
+
+There is no API to delete a grid line (`CurtainGrid` exposes `AddGridLine` and nothing else, and `Mullion` exposes no delete), so the only lever is the **segment**: removing a grid line's segments deletes its mullions.
+
+```csharp
+// 1. Look first — read-only. Reports every bay narrower than the minimum (default 500 mm).
+selectedWall.AuditNarrowBays().Table()
+selectedWall.AuditNarrowBays(600).Table()
+GetElements<Wall>().AuditNarrowBays().Table()
+
+// 2. Merge them. Removes the offending grid line's segments, so the bay merges into
+//    its neighbour and the mullion goes with it.
+selectedWall.MergeNarrowBays().Table()
+selectedWall.MergeNarrowBays(500).Table()
+GetElements<Wall>().MergeNarrowBays(500).Table()          // one transaction
+
+// One axis only (Vertical = the mullion bays along the wall, Horizontal = the transoms)
+selectedWall.MergeNarrowBays(500, CurtainBayAxis.Vertical).Table()
+
+// 3. Phantom members (defect D38) — ids a grid still RETURNS but no longer CONTAINS.
+selectedWall.PurgeGhostMembers().Table()
+GetElements<Wall>().PurgeGhostMembers().Table()
+```
+
+**The second cleanup — segments whose mullion was deleted.**
+
+Select a mullion, unpin it, delete it: the mullion goes, but the grid line's **segment stays existing**. The division outlives the member — so the wall reports two panels where one continuous pane was intended, and the grid line is still drawn in every view. `RemoveMullionlessSegments` removes those segments, which merges the panels and takes the line out of the view.
+
+```csharp
+// 4. Remove every segment that has no mullion on it.
+selectedWall.RemoveMullionlessSegments().Table()
+GetElements<Wall>().RemoveMullionlessSegments().Table()          // one transaction
+selectedWall.RemoveMullionlessSegments(CurtainBayAxis.Vertical).Table()
+```
+
+Measured on the villa, 2026-10-05 — 28 curtain walls, **33 mullion-less segments on 10 walls**:
+
+| Wall | Existing segments | Mullion-less | Note |
+|---|---|---|---|
+| 544635 | 10 | **6** | all three vertical lines stripped by hand |
+| 478741 | 10 | 6 | also carries the 4 phantom mullions |
+| 512772 | 15 | 4 | |
+| 804823 / 807435 / 807526 / 807593 | 10 | 1 each | a horizontal segment |
+| the other 18 walls | — | **0** | ⚠ the test does not manufacture orphans |
+
+**Emptying a line is supported.** Removing a line's *last* segment makes Revit post *"Curtain grid lines must have at least one segment"*. That is a **warning with no consequence** — the owner's own hand edit leaves wall 804645's line 804659 at `existingSegs 0 / skippedSegs 2`, and that wall is healthy (8 panel ids = 6 built + 2 ghost, which the schedule already reports as 6). But the warning raises a **modal dialog**, and a modal dialog blocks the API — which is why this cleanup could not be automated before. Every transaction these tools open now installs a failures preprocessor that deletes warnings. Measured in the REPL: `preprocessor calls=1, warningsDeleted=3`, commit completed, no dialog. ⚠ Only **warnings** are deleted — an error still fails the transaction.
+
+**The merge rule.** Boundaries are the two ends of the axis plus every grid line that still has a live segment. A bay shorter than `minBayMm` is fixed by removing its **starting** boundary, so it merges *backwards* into its neighbour — for the trailing bay that is exactly "remove the last grid before reaching the edge". A leading bay has no removable start (the wall edge), so its ending boundary goes instead. Removals are re-scanned from the far end after each one, so a wall needing two merges gets both.
+
+**What is measured, not assumed.** On the villa, 2026-10-05:
+
+| Wall | Type / layout | Bays | Result |
+|---|---|---|---|
+| 512772 | Type4, Fixed Distance 900, 5000 mm | 900/900/900/900/**500** | left alone — exactly the minimum |
+| 804556 | Type2, Fixed Distance 900, 3100 mm | 900/900/1300 | already merged; no-op |
+| 544635 | Type4, Fixed Distance 900, 2900 mm | 900/900/900/**200** | flagged **Trailing**, merged to 1100 |
+| 478741 | Type4, Fixed Distance 900, 2550 mm | two lines at **900** | flagged **Coincident** (0 mm), merged to 900 |
+
+`MergeNarrowBays` returns one row per bay with the axis, kind, the offending width, the merged width, the removed line id, and the type's own layout and spacing. `.Table()` renders it and states the headline. An empty result prints "no narrow bays".
+
+**Notes.**
+
+- ⚠⚠ **DO NOT run this on a wall whose glazing is BUTT-JOINTED BY DESIGN.** In real construction there are glass walls with no mullions at all, and their panels must still be reported **separately**. This method cannot tell that intent from a mullion that was deleted by mistake — it removes **every** mullion-less segment on the wall it is given. Two consequences:
+  - Call it on **`selectedWall`**, not `GetElements<Wall>()`, unless you genuinely mean it across the model.
+  - It is **all-or-nothing per wall** — there is no "remove these three, keep those two". Preserve by hand the ones you want to keep, or leave that wall alone.
+- ⚠ The layout *mode* is `SPACING_LAYOUT_VERT` / `SPACING_LAYOUT_HORIZ` and the *spacing* is `SPACING_LENGTH_VERT` / `SPACING_LENGTH_HORIZ`. `CURTAINGRID_BELT_U/V` are **not** the spacing — they do not exist on these types.
+- ⚠ `GetVGridLineIds()` are the **vertical** grid lines (the mullion bays); `GetUGridLineIds()` are the horizontal ones (the transoms). The U/V naming is the opposite of what it looks like.
+- The grid line **element** survives the merge with zero existing segments — that is Revit's behaviour, and it matches the state a hand edit leaves behind. It is skipped on a re-run, so the tool is idempotent.
+- `PurgeGhostMembers` deletes singly and tolerates refusal: Revit refuses every phantom **panel** and some phantom mullions, and a multi-id `Delete` is atomic, so one refusal would otherwise block the lot.
+- ⚠ `RemoveMullionlessSegments`'s test is **geometric**: a *live* mullion, parallel to the segment, whose midpoint lies on it to within 6 mm. 18 of the 28 walls report zero orphans at that band, which is what makes it trustworthy rather than trigger-happy. Ghost mullions are excluded, so an already-orphaned member can never excuse a segment.
+- ⚠ What the cleanup **leaves behind** is not a defect and is not fixed here: a merge strands one ghost panel per removed division (Revit refuses to delete phantom panels), and the perpendicular mullion pieces do not become one element. Both are already absorbed downstream — by the built-panel test and by `MullionMemberCount`.
+- All writers open their own transaction unless one is already active, so they are safe inside a script's own `Transact`.
+
 <!-- #PRO-ONLY-END -->
 
 ---
 
-## 17. Global ScriptApi Methods
+## 18. Global ScriptApi Methods
 
 These are called directly without a prefix — available in every script.
 
@@ -509,7 +587,13 @@ GetCategories()                             // all Revit categories in doc
 ```csharp
 Transact("My Operation", () => { /* modify doc */ });
 Transact("With Doc Access", doc => { /* use doc */ });
+Regen()                   // regenerate the document (opens the transaction for you)
 ```
+
+⚠ `Doc.Regenerate()` requires an open transaction — called outside one it throws *"Modification of
+the document is forbidden"*, which names neither the method nor the cause. `Regen()` wraps it.
+You rarely need it: a committed transaction already regenerates, and `ExportImage` exports after the
+model has settled.
 
 ### UI Actions (on collections, without prefixes)
 
@@ -519,9 +603,41 @@ Isolate(elements)         // isolate + zoom
 Zoom(elements)            // zoom to fit
 ```
 
+### Image Export
+
+Render a view to an image file — how a script, or an AI agent driving the REPL, **looks** at what
+it built. Returns the path that was actually written.
+
+```csharp
+// Active view → returns the file that exists
+var shot = ExportImage(@"C:\tmp\current");
+
+// A named view, at 2000 px
+var elev = ExportImage(@"C:\tmp\north-elev", "North Elevation", 2000);
+
+// Keep the level/grid tags in the picture (they are suppressed by default)
+var tagged = ExportImage(@"C:\tmp\tagged", "Ground Floor", 2000, hideAnnotation: false);
+```
+
+⚠ **Use the RETURN value — it is the file that exists, not the path you passed.** Revit appends the
+view identity to the base name and may change the extension: asking for `C:\tmp\shot` on the default
+3D view writes `C:\tmp\shot - 3D View - {3D}.jpg`. **A 3D or shaded view is written as `.jpg` even
+though PNG is requested.**
+
+⚠ **Annotation is suppressed by default** (`hideAnnotation: true`). Revit's export does not clip
+annotation to the view, so level heads, grid bubbles and elevation/section marks are drawn wherever
+they sit — and because the whole extent is fitted to the page, they **shrink the subject**. A plan
+view with elevation markers beside it renders the building into a fraction of the frame. The whole
+`CategoryType.Annotation` set is hidden for the export and restored afterwards (no undo entry).
+
+- Pass the path **without** an extension. The directory is created if it does not exist.
+- `viewName` omitted ⇒ the **active view**. Matched case-insensitively; view templates are rejected.
+- **No `Transact()` needed** — the suppression transaction is opened and rolled back internally, so
+  the model and the view are unchanged when this returns.
+
 ---
 
-## 18. Complete Fluent Chain Examples
+## 19. Complete Fluent Chain Examples
 
 ```csharp
 // Doors on Level 1, sorted by width
@@ -550,10 +666,21 @@ GetElements<StructuralColumn>("Structural Columns")
     .Table()
 
 ```
-<!-- #PRO-ONLY-BEGIN AuditClashes fluent example — Pro add-in only (CoordinationExtensions.cs); gen-engine-docs.py strips this from the free-repo copy -->
+<!-- #PRO-ONLY-BEGIN Pro-engine fluent examples — Clash Detection (CoordinationExtensions.cs) and Curtain Grid Repair (CurtainGridRepairExtensions.cs); gen-engine-docs.py strips this from the free-repo copy -->
 ```
 GetElements("Pipes")
     .AuditClashes("Structural Framing", "5mm")
     .Table()
+```
+
+```
+// Curtain grids: look first, then merge anything under 500 mm, then clear the phantoms
+GetElements<Wall>().AuditNarrowBays().Table()
+
+GetElements<Wall>().MergeNarrowBays(500).Table()
+
+GetElements<Wall>().RemoveMullionlessSegments().Table()
+
+GetElements<Wall>().PurgeGhostMembers().Table()
 ```
 <!-- #PRO-ONLY-END -->

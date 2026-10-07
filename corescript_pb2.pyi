@@ -279,7 +279,7 @@ class StructuredOutputItem(_message.Message):
     def __init__(self, type: _Optional[str] = ..., data: _Optional[str] = ..., title: _Optional[str] = ...) -> None: ...
 
 class ExecuteScriptResponse(_message.Message):
-    __slots__ = ("is_success", "output", "error_message", "error_details", "structured_output", "internal_data", "agent_summary", "pipeline_diagnostics", "user_rejected")
+    __slots__ = ("is_success", "output", "error_message", "error_details", "structured_output", "internal_data", "agent_summary", "pipeline_diagnostics", "user_rejected", "confirmation")
     IS_SUCCESS_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_FIELD_NUMBER: _ClassVar[int]
     ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
@@ -289,6 +289,7 @@ class ExecuteScriptResponse(_message.Message):
     AGENT_SUMMARY_FIELD_NUMBER: _ClassVar[int]
     PIPELINE_DIAGNOSTICS_FIELD_NUMBER: _ClassVar[int]
     USER_REJECTED_FIELD_NUMBER: _ClassVar[int]
+    CONFIRMATION_FIELD_NUMBER: _ClassVar[int]
     is_success: bool
     output: str
     error_message: str
@@ -298,7 +299,8 @@ class ExecuteScriptResponse(_message.Message):
     agent_summary: str
     pipeline_diagnostics: _containers.RepeatedScalarFieldContainer[int]
     user_rejected: bool
-    def __init__(self, is_success: bool = ..., output: _Optional[str] = ..., error_message: _Optional[str] = ..., error_details: _Optional[_Iterable[str]] = ..., structured_output: _Optional[_Iterable[_Union[StructuredOutputItem, _Mapping]]] = ..., internal_data: _Optional[str] = ..., agent_summary: _Optional[str] = ..., pipeline_diagnostics: _Optional[_Iterable[int]] = ..., user_rejected: bool = ...) -> None: ...
+    confirmation: str
+    def __init__(self, is_success: bool = ..., output: _Optional[str] = ..., error_message: _Optional[str] = ..., error_details: _Optional[_Iterable[str]] = ..., structured_output: _Optional[_Iterable[_Union[StructuredOutputItem, _Mapping]]] = ..., internal_data: _Optional[str] = ..., agent_summary: _Optional[str] = ..., pipeline_diagnostics: _Optional[_Iterable[int]] = ..., user_rejected: bool = ..., confirmation: _Optional[str] = ...) -> None: ...
 
 class GetStatusRequest(_message.Message):
     __slots__ = ()
@@ -389,7 +391,7 @@ class GetScriptParametersResponse(_message.Message):
     def __init__(self, parameters: _Optional[_Iterable[_Union[ScriptParameter, _Mapping]]] = ..., error_message: _Optional[str] = ...) -> None: ...
 
 class ScriptParameter(_message.Message):
-    __slots__ = ("name", "type", "default_value_json", "description", "options", "multi_select", "visible_when", "numeric_type", "min", "max", "step", "is_revit_element", "revit_element_type", "revit_element_category", "requires_compute", "group", "input_type", "required", "suffix", "pattern", "enabled_when_param", "enabled_when_value", "unit", "selection_type")
+    __slots__ = ("name", "type", "default_value_json", "description", "options", "multi_select", "visible_when", "numeric_type", "min", "max", "step", "is_revit_element", "revit_element_type", "revit_element_category", "requires_compute", "group", "input_type", "required", "suffix", "pattern", "enabled_when_param", "enabled_when_value", "unit", "selection_type", "filter")
     NAME_FIELD_NUMBER: _ClassVar[int]
     TYPE_FIELD_NUMBER: _ClassVar[int]
     DEFAULT_VALUE_JSON_FIELD_NUMBER: _ClassVar[int]
@@ -414,6 +416,7 @@ class ScriptParameter(_message.Message):
     ENABLED_WHEN_VALUE_FIELD_NUMBER: _ClassVar[int]
     UNIT_FIELD_NUMBER: _ClassVar[int]
     SELECTION_TYPE_FIELD_NUMBER: _ClassVar[int]
+    FILTER_FIELD_NUMBER: _ClassVar[int]
     name: str
     type: str
     default_value_json: str
@@ -438,7 +441,8 @@ class ScriptParameter(_message.Message):
     enabled_when_value: str
     unit: str
     selection_type: str
-    def __init__(self, name: _Optional[str] = ..., type: _Optional[str] = ..., default_value_json: _Optional[str] = ..., description: _Optional[str] = ..., options: _Optional[_Iterable[str]] = ..., multi_select: bool = ..., visible_when: _Optional[str] = ..., numeric_type: _Optional[str] = ..., min: _Optional[float] = ..., max: _Optional[float] = ..., step: _Optional[float] = ..., is_revit_element: bool = ..., revit_element_type: _Optional[str] = ..., revit_element_category: _Optional[str] = ..., requires_compute: bool = ..., group: _Optional[str] = ..., input_type: _Optional[str] = ..., required: bool = ..., suffix: _Optional[str] = ..., pattern: _Optional[str] = ..., enabled_when_param: _Optional[str] = ..., enabled_when_value: _Optional[str] = ..., unit: _Optional[str] = ..., selection_type: _Optional[str] = ...) -> None: ...
+    filter: str
+    def __init__(self, name: _Optional[str] = ..., type: _Optional[str] = ..., default_value_json: _Optional[str] = ..., description: _Optional[str] = ..., options: _Optional[_Iterable[str]] = ..., multi_select: bool = ..., visible_when: _Optional[str] = ..., numeric_type: _Optional[str] = ..., min: _Optional[float] = ..., max: _Optional[float] = ..., step: _Optional[float] = ..., is_revit_element: bool = ..., revit_element_type: _Optional[str] = ..., revit_element_category: _Optional[str] = ..., requires_compute: bool = ..., group: _Optional[str] = ..., input_type: _Optional[str] = ..., required: bool = ..., suffix: _Optional[str] = ..., pattern: _Optional[str] = ..., enabled_when_param: _Optional[str] = ..., enabled_when_value: _Optional[str] = ..., unit: _Optional[str] = ..., selection_type: _Optional[str] = ..., filter: _Optional[str] = ...) -> None: ...
 
 class GetBulkMetadataRequest(_message.Message):
     __slots__ = ("projects",)
