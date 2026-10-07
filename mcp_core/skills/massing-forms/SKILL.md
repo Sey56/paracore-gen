@@ -5,6 +5,11 @@ description: Conceptual massing with Form objects — AddProfile, AddEdge, AddPa
 
 # Conceptual Massing & Forms
 
+⚠⚠ **CONCEPT STUDIES ONLY.** A `Form` or `DirectShape` **cannot become a floor, a wall or a
+room** — massing is a dead end for a real building. If the request is *"model this building"*,
+*"make it three storeys"* or *"add walls and rooms"*, use the **`project-modeling`** skill
+instead: levels, slabs, walls, rooms and openings, built per level with real elements.
+
 Conceptual massing in Revit is **family authoring with a mass template**. There is no separate
 massing API: the form creators live on `FamilyItemFactory`, reachable as `Doc.FamilyCreate` on a
 **mass family document**.

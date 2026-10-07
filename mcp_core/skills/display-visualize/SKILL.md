@@ -1,6 +1,6 @@
 ---
 name: display-visualize
-description: Rendering data as tables and charts — Table, BarGraph, PieGraph, LineGraph, Println, Select projection
+description: Rendering data as tables and charts — Table, BarGraph, PieGraph, LineGraph, ExportImage (view → image), Println, Select projection
 ---
 
 # Display & Visualize
@@ -84,3 +84,55 @@ GetElements("Walls").WhereParam("Base Constraint", "Level 1")
 ```
 
 Always put `Id` as the first column in `.Select()` projections.
+
+## Seeing the model — `export_view` (tool) and `ExportImage()` (in-script)
+
+This is how you **look at what you built** — numbers alone cannot tell you whether a proportion
+is right.
+
+**`export_view(view_name, pixel_size)` — the tool. Prefer this.** It renders a named view (or the
+active view when `view_name` is omitted) and returns the **image itself**, so you can see it in
+one step. The file is written to a temp directory and returned directly.
+
+```text
+export_view("3D View - {3D}")        # a named view
+export_view()                        # the active view
+export_view("North Elevation", 2000) # named view, 2000 px
+```
+
+⚠ **The loop is build → export → look → correct.** Export after *every* build stage, not only at
+the end — a wall in the wrong place is far cheaper to fix before the next 30 elements exist.
+
+**`ExportImage(path, viewName, pixelSize)` — the in-script form.** Use it when you are already
+writing C# and want the **path** back instead of the image. It returns the path that was actually
+written.
+
+```csharp
+// Active view
+var shot = ExportImage(@"C:\tmp\current");
+
+// A named view, at 2000 px
+var elev = ExportImage(@"C:\tmp\north-elev", "North Elevation", 2000);
+Println($"wrote {shot}");
+```
+
+⚠ **Use the RETURN value — it is the file that exists, not the path you passed.** Revit appends the
+view identity to the base name and may change the extension: asking for `C:\tmp\shot` on the default
+3D view writes `C:\tmp\shot - 3D View - {3D}.jpg`. **A 3D or shaded view is written as `.jpg` even
+though PNG is requested.**
+
+- Pass the path **without** an extension. The directory is created if it does not exist.
+- `viewName` omitted ⇒ the **active view**. Matched case-insensitively; view templates are rejected.
+- **No `Transact()` needed** — an export does not modify the model.
+- Plain Revit API, no Pro dependency — it works on the free add-in and the Pro add-in alike.
+
+⚠ **`ExportImage` suppresses annotation for you — by default.** Revit's image export does **not**
+clip annotation to the view, so level heads, grid bubbles and **elevation/section marks** are drawn
+wherever they sit — even far outside the model — and because the export fits the whole extent to the
+page, they **shrink the subject**. This is *not* limited to 3D views: a **plan** view with elevation
+markers beside it renders the building into a fraction of the frame. `ExportImage` therefore hides
+the whole `CategoryType.Annotation` set on the view for the duration of the export and restores it —
+the caller sees no change and no undo entry. Pass `hideAnnotation: false` as the 4th argument only
+when you specifically want the level/grid tags in the image.
+
+**Use it whenever the user asks "does this look right?"** — build, export, look, correct.

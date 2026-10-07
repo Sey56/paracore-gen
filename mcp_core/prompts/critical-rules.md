@@ -15,7 +15,12 @@
 5. **Transactions:** All write/UI methods auto-detect active transactions (IsModifiable):
    - Single element: `.SetVal()`/`.Delete()`/`.Hide()` auto-transact — no Transact() needed.
    - Collection batch: `.SetParam()`/`.Delete()`/`.Hide()`/`.Unhide()`/`.Isolate()` = ONE transaction.
-   - Manual foreach: ALWAYS wrap in `Transact()`. Inside it, methods run directly, no sub-txns.
+   - ⚠ ANY loop containing a write — `foreach`, `for`, `while`, `.ForEach()`, a LINQ `.Select` with
+     a side effect, recursion — must have the WHOLE loop inside ONE `Transact()`. Un-wrapped, each
+     write opens its OWN transaction ⇒ N elements = N undo entries, and Revit's undo stack is finite,
+     so past its limit you can no longer undo back to where you started. ⚠ A `Transact()` placed
+     INSIDE the loop is the mistake — it creates N transactions. Inside the `Transact()` the methods
+     run directly; no sub-transactions are created.
    - After ANY modification, ALWAYS add a `Println()` with the count and what was done.
      The output text feeds your conversational response. Without it you have nothing to say.
 

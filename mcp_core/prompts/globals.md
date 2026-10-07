@@ -20,6 +20,7 @@ GetElement<T>(string)        → single element by name/id
 GetMagicNames()              → all targetable category/family/class names
 GetCategories()              → all project category names
 Transact(string, Action)     → wrap writes in a single undo transaction
+Regen()                      → regenerate the document (safe wrapper around Doc.Regenerate())
 Table(object)                → render as interactive data grid
 BarGraph(object)             → render bar chart
 PieGraph(object)             → render pie chart

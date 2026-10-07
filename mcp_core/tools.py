@@ -9,9 +9,13 @@ SECURITY: Checks are ALWAYS enforced. No silent fallback. If tool_helpers can't
 import, the module fails LOUD at import time — not silently at runtime.
 """
 
+import glob
 import logging
+import os
+import tempfile
 import threading
 import time
+import uuid
 from contextlib import contextmanager
 
 from grpc_client import execute_repl
@@ -562,4 +566,105 @@ def pick_object_report(selection_type: str = "Element", category_filter: str = "
         f"Resolve it in a query with id.ToElement(Doc), or read it with "
         f'GetElements(...).WhereParam("Id", "{element_id}").'
     )
+
+
+# ── View export — the agent's eyes ─────────────────────────────────────────
+# Renders a Revit view to an image so a multimodal agent can LOOK at what it built.
+# An image tells you a proportion is wrong; it never tells you a quantity is right —
+# it complements the Tier 1 counts, it does not replace them.
+#
+# ⚠ The export is done by the engine's SHARED ExportImage(path, viewName, pixelSize)
+#   (CoreScript.Engine/Globals/ScriptApi.ViewExport.cs). It resolves the view, rejects
+#   view templates, creates the directory, and returns the path ACTUALLY written —
+#   Revit appends " - <view name>" and may switch the extension, so the path you ask
+#   for is not the file that exists. Routing through it keeps those two traps handled
+#   in ONE place instead of duplicated here (a rule in N places drifts).
+#
+# ⚠ The path is NOT read back from the transcript. `output` is a transcript that
+#   accumulates Println and can be truncated at the TAIL, so the file is located by
+#   PREFIX, newest match, from the base path we chose. The call only has to succeed.
+
+_VIEW_EXPORT_DIR = os.path.join(tempfile.gettempdir(), "paracore_views")
+
+
+def _export_view_snippet(base_path: str, view_name: str, pixel_size: int) -> str:
+    """Minimal C#: one call, no Transact (an export does not modify the model)."""
+    view_arg = "null"  # null => the active view
+    if view_name:
+        escaped = view_name.replace("\\", "\\\\").replace('"', '\\"')
+        view_arg = f'"{escaped}"'
+    # @-verbatim for the path (backslashes stay literal); an escaped literal for the name.
+    return (
+        f'var __shot = ExportImage(@"{base_path}", {view_arg}, {int(pixel_size)});\n'
+        f'Println("exported: " + __shot);\n'
+    )
+
+
+def export_view_report(
+    view_name: str = "",
+    pixel_size: int = 1200,
+    *,
+    session_id: str = "mcp-session",
+    source: str = "mcp_agent",
+) -> dict:
+    """
+    Render a Revit view to an image file and return the path that was written.
+
+    Returns {"path": str | None, "view": str, "error": str | None}.
+    The transport layer (MCP) turns "path" into an image content block; the in-app
+    agent can read the file directly. Kept FastMCP-free so both consumers share it.
+
+    No transaction is opened — an export does not modify the model.
+    """
+    t0 = time.perf_counter()
+    view_name = (view_name or "").strip()
+
+    try:
+        pixel = max(200, min(int(pixel_size or 1200), 8000))
+    except (TypeError, ValueError):
+        pixel = 1200
+
+    os.makedirs(_VIEW_EXPORT_DIR, exist_ok=True)
+    base = os.path.join(_VIEW_EXPORT_DIR, f"view_{uuid.uuid4().hex[:8]}")
+    label = f"export view {view_name or '(active)'}"
+
+    code = _export_view_snippet(base, view_name, pixel)
+    logger.info(f"Exporting view: {view_name or '(active view)'} at {pixel}px")
+
+    try:
+        with single_flight(label):
+            result = execute_repl(code, session_id, source=source)
+    except RevitBusy as busy:
+        record_tool_call("export_view", False, (time.perf_counter() - t0) * 1000,
+                         refused_busy=True)
+        logger.warning(f"Refused concurrent export request: {busy}")
+        return {"path": None, "view": view_name, "error": busy_message(busy)}
+    except Exception as e:
+        record_tool_call("export_view", False, (time.perf_counter() - t0) * 1000)
+        logger.error(f"export_view exception: {e}")
+        return {"path": None, "view": view_name, "error": f"Export failed: {e}"}
+
+    if not result.get("is_success"):
+        record_tool_call("export_view", False, (time.perf_counter() - t0) * 1000)
+        return {"path": None, "view": view_name,
+                "error": format_execution_error(result)}
+
+    # ⚠ Find by PREFIX, newest match. Never trust the exact name we passed in.
+    written = None
+    try:
+        candidates = glob.glob(glob.escape(base) + "*")
+        if candidates:
+            written = max(candidates, key=os.path.getmtime)
+    except OSError as e:
+        logger.warning(f"export_view could not scan {_VIEW_EXPORT_DIR}: {e}")
+
+    if not written or not os.path.exists(written):
+        record_tool_call("export_view", False, (time.perf_counter() - t0) * 1000)
+        return {"path": None, "view": view_name,
+                "error": ("The export reported success but no image file matching "
+                          f"'{os.path.basename(base)}*' appeared in {_VIEW_EXPORT_DIR}. "
+                          "Check the view is not a view template, then try again.")}
+
+    record_tool_call("export_view", True, (time.perf_counter() - t0) * 1000)
+    return {"path": written, "view": view_name, "error": None}
 

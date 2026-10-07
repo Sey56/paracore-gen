@@ -7,6 +7,12 @@ description: Creating Revit elements — Wall.Create, Floor.Create, FamilyInstan
 
 Create new Revit elements using the raw Revit API. Full access to `Autodesk.Revit.DB` — this is a real C# REPL, not a limited DSL. `Transact()` REQUIRED for all creation.
 
+⚠ **This page is the single-element reference.** For a whole **building** — levels, plan views,
+slabs, walls, openings, rooms, per level — use **`project-modeling`**, which carries the build
+order, the traps, and the verification recipes. This page shows the core creation calls; that
+one shows the building. ⚠ Do **not** reach for `massing-forms` for a building: a `Form` cannot
+become a room.
+
 ## Core Types (pre-imported, no using needed)
 
 ```

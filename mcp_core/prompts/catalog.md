@@ -90,7 +90,9 @@ el.ReflectionProperties()  el.ReflectionMethods()
 
 Full access to Autodesk.Revit.DB everywhere.
 XYZ, Line.CreateBound, Arc.Create, CurveLoop, Wall.Create, FamilyInstance.Create, etc. all work.
-Transact() REQUIRED for manual foreach and raw API writes — gives one clean undo entry.
+Transact() REQUIRED for ANY loop with a write (foreach / for / while / .ForEach() / LINQ side effect)
+and for raw API writes. The wrapper must enclose the WHOLE loop — a Transact() inside the loop is the
+mistake. One un-wrapped write per element = one undo entry per element, and the undo stack is finite.
 
 ```csharp
 // Wall

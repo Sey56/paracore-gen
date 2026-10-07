@@ -43,12 +43,18 @@ _HARD_ERRORS: list[tuple[str, str]] = [
         'NEVER chain .Select() after .GroupByParam(). Chain .Table() directly: .GroupByParam("Level").Table()'
     ),
     # `doc` / `document` are not defined — only the injected global `Doc` exists.
+    # ⚠⚠ The `(?=\w)` guard is load-bearing. Without it these match the ENGLISH WORD at the
+    #    end of a sentence, so a comment or string reading "...the active document." is
+    #    BLOCKED as a hard error. Measured 2026-10-02: the family build template was rejected
+    #    on exactly two such comments. A false positive on the BLOCKING layer costs a
+    #    round-trip and cannot be worked around by ignoring advice — far worse than a lint.
+    #    With the guard, only a real member access (`document.SaveAs`, `doc.Delete`) matches.
     (
-        r'(?-i:(?<![.\w])doc\.)',
+        r'(?-i:(?<![.\w])doc\.(?=\w))',
         'Use Doc (capital D) — it\'s the global Revit Document. doc (lowercase) is not defined.'
     ),
     (
-        r'(?-i:(?<![.\w])document\.)',
+        r'(?-i:(?<![.\w])document\.(?=\w))',
         'Use Doc (capital D) — only the injected global exists; `document` is not defined.'
     ),
     # Transact() requires a name string as its first argument.
@@ -87,19 +93,27 @@ _LINT_RULES: list[tuple[str, str]] = [
         r'string\.Join\s*\([^)]*Select\s*\(',
         'Use .Select(x => new{...}).Table() instead of string.Join for data display.'
     ),
-    # Raw element collection instead of GetElements
+    # Raw element collection instead of GetElements.
+    # ⚠⚠ GetElements<T>() has NO document overload — it always reads the ACTIVE document.
+    #    Family authoring works on a SECOND document (NewFamilyDocument / EditFamily), where
+    #    the collector is the ONLY option. Lint only the active-document case; otherwise the
+    #    rule fires on correct code, and a lint that fires on correct code trains the agent
+    #    to ignore lints. (Same failure class as D-MCP-2.)
     (
-        r'new\s+FilteredElementCollector\s*\(',
-        'Use GetElements<T>() for typed or GetElements("Category") for string-based retrieval instead of new FilteredElementCollector().'
+        r'new\s+FilteredElementCollector\s*\(\s*(?:Doc\s*)?\)',
+        'Use GetElements<T>() for typed or GetElements("Category") for string-based retrieval instead of new FilteredElementCollector() on the ACTIVE document. A collector over another document (e.g. a family document) is correct and is not flagged.'
     ),
     # Raw parameter access
     (
         r'\.LookupParameter\s*\(',
         'Use .GetStr("Name") or .GetNum("Name") instead of .LookupParameter().'
     ),
+    # get_Parameter BY NAME only. ⚠ get_Parameter(BuiltInParameter.X) is a different thing:
+    #   it returns the Parameter OBJECT, which GetStr/GetNum cannot supply — and which family
+    #   work needs for GetAssociatedFamilyParameter / AssociateElementParameterToFamilyParameter.
     (
-        r'\.get_Parameter\s*\(',
-        'Use .GetStr("Name"), .GetNum("Name", "unit"), or .GetVal("Name") instead of .get_Parameter().'
+        r'\.get_Parameter\s*\(\s*"',
+        'Use .GetStr("Name"), .GetNum("Name", "unit"), or .GetVal("Name") instead of .get_Parameter("Name"). (get_Parameter(BuiltInParameter.X) returns the Parameter object and is not flagged.)'
     ),
     # Hardcoded unit conversion math
     (

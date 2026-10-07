@@ -25,7 +25,7 @@ def _get_resource_path(filename: str) -> str:
 
 import json
 import logging
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Image
 
 # Now we can safely import from grpc_client (which is in base_dir/server or base_dir)
 from grpc_client import close_channel, init_channel
@@ -42,6 +42,7 @@ from mcp_core.tools import (
     get_globals,
     get_context_report,
     pick_object_report,
+    export_view_report,
     ping as ping_impl,
     _SESSION,
 )
@@ -116,6 +117,12 @@ PARAMETER NAMES — NEVER GUESS:
 	    → .CombinedParams().Table() shows instance, type, AND native params
 	  A mistyped name returns empty — indistinguishable from "no matches."
 	  NEVER guess parameter names. Discover first on the actual category.
+
+MODELLING A BUILDING — read skill://project-modeling FIRST:
+  A real building is built PER LEVEL: levels → slabs → walls → rooms.
+  Do NOT use massing-forms for a building — a Form cannot become a wall,
+  floor or room. Massing is concept studies only.
+  After every build, re-derive counts and read Doc.GetWarnings().
 
 START EVERY SESSION WITH:
   1. ping  → verifies the connection for real. If it reports NO CONNECTION, stop
@@ -216,6 +223,41 @@ def pick_object(selection_type: str = "Element", category_filter: str = "") -> s
     """
     _SESSION.record_discovery()
     return pick_object_report(selection_type, category_filter)
+
+
+@mcp.tool()
+def export_view(view_name: str = "", pixel_size: int = 1200) -> Image:
+    """
+    Render a Revit view to an image and return it, so you can SEE the model.
+
+    Use this whenever the request is visual — "does this look right?", "check the
+    proportions", "show me what you built" — and after every build stage, not only at
+    the end. A picture catches a wall in the wrong place long before a count would.
+
+    Args:
+        view_name: name of the view to export, e.g. "3D View - {3D}" or "Level 1".
+            Omit it to export the ACTIVE view. Matched case-insensitively; a view
+            template cannot be exported.
+        pixel_size: longest-edge pixel size. Default 1200; 2000 for detail.
+
+    Returns the rendered image. On failure it returns a text explanation instead — most
+    often the named view does not exist, in which case the message lists views that do.
+
+    ⚠ Seeing is not measuring: an image shows a wrong proportion, never a wrong quantity.
+    Pair it with the count check (GetElements(...).Count(), Doc.GetWarnings()).
+    ⚠ Annotation is SUPPRESSED for this export. Revit's image export does NOT clip
+    annotation to the view, so level heads, grid bubbles and elevation/section marks are
+    drawn wherever they sit — and because the whole extent is fitted to the page, they
+    SHRINK the subject. That is not limited to 3D views: a plan view with elevation
+    markers beside it renders the building into a fraction of the frame. The engine hides
+    the whole annotation set for the export and restores it, so the picture frames the
+    MODEL. To keep the tags, export in-script with
+    `ExportImage(path, view, px, hideAnnotation: false)`.
+    """
+    result = export_view_report(view_name, pixel_size)
+    if result.get("path"):
+        return Image(path=result["path"])
+    return result.get("error") or "The view export failed."
 
 
 @mcp.tool()
@@ -388,9 +430,10 @@ _SKILL_DESCRIPTIONS: dict[str, str] = {
     "aggregate-group":    "Grouping, counting, and summing — GroupByParam, SumParam, aggregated totals",
     "parameter-access":   "Reading element parameters — GetStr, GetNum, GetVal, GetInt, type-level accessors",
     "write-modify":       "Modifying elements — SetVal, SetNum, SetParam, Delete, Hide, Isolate, Transact",
-    "display-visualize":  "Rendering data — Table, BarGraph, PieGraph, LineGraph, Println, Select projection",
+    "display-visualize":  "Rendering data — Table, BarGraph, PieGraph, LineGraph, ExportImage (view → image file), Println, Select projection",
     "discovery-debug":    "Exploring unknown elements — CombinedParams, Peek, BuiltInParams, GeometrySummary",
     "create-geometry":    "Creating new Revit elements — Wall.Create, Floor.Create, XYZ, CurveLoop, InputUnit",
+    "project-modeling":   "Modelling a REAL building, per level — levels, plan views, grids, slabs, walls, curtain walls, roofs, rooms, doors/windows, stairs, columns, wall-type duplication, family loading, plus per-build verification and safety recipes. The path for \"model a building\" — NOT massing.",
     "identity-orientation": "Element identity and door/window data — FamilyName, Matches, RoomFrom, Handing",
     "materials-units":    "Materials, unit conversion, numeric helpers — InputUnit, OutputUnit, IsAlmostEqualTo",
     "family-authoring":   "Creating and editing loadable families (.rfa) — NewFamilyDocument, EditFamily, extrusions, revolutions, sweeps, blends, FamilyManager parameters and types",
