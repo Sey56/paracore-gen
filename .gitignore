@@ -48,3 +48,16 @@ target/
 .kilo/
 .workbuddy-ai/
 *.log
+
+# spikes/ holds the MCP's PROOF INSTRUMENTS, not scratch. build-mcp.ps1 step 4b
+# runs verify_bundled_prompts.py, and the paracore-mcp-build-verify skill names
+# extract_skill.py and probe_installed_compliance.py. Those .py files are source.
+# Everything else here is probe output: logs, dumps, extracted text, and the
+# DoorScratch.rfa build artefact (which the family-artifacts skill cites only as
+# an example of what robocopy /E ships from an untracked path).
+spikes/*
+!spikes/*.py
+
+# Runtime state written by the MCP server while Revit is attached
+.mcp_proc.txt
+.revit_state.txt
