@@ -1,18 +1,25 @@
 ; ═══════════════════════════════════════════════════════════════════════════════
-; Paracore Generalist MCP Installer
+; Paracore-Core Installer — the generalist Revit API MCP server
 ; ═══════════════════════════════════════════════════════════════════════════════
 ;
 ; Usage:
-;   ISCC -DMCPName=mcp -DMCPTitle="Paracore-MCP" -DVersion=4.6.0 paracore-mcp.iss
+;   ISCC -DMCPName=mcp -DMCPTitle="Paracore-Core" -DVersion=4.6.0 paracore-mcp.iss
 ;
-; Output: Paracore-MCP-v4.6.0.exe
+; Output: Paracore-Core-v4.6.0.exe
+;
+; ⚠⚠ PRODUCT NAME vs EXE NAME — these deliberately differ (user ruling 2026-10-09).
+;   The product is Paracore-Core, but the exe stays paracore-mcp.exe, because the exe
+;   name IS the `command` path in every MCP client config: renaming it would break
+;   every existing install for no user-visible gain. The four naming surfaces are
+;   pinned in paracore-ecosystem/MASTER_SYSTEM_SPEC.md ("PRODUCT NAMING") — change
+;   them together, never one at a time.
 ; ═══════════════════════════════════════════════════════════════════════════════
 
 #ifndef MCPName
   #define MCPName "mcp"
 #endif
 #ifndef MCPTitle
-  #define MCPTitle "Paracore-MCP"
+  #define MCPTitle "Paracore-Core"
 #endif
 #ifndef Version
   #define Version "0.0.0"
@@ -43,7 +50,10 @@ DisableDirPage=yes
 SetupIconFile="{#IconPath}"
 PrivilegesRequired=lowest
 DisableProgramGroupPage=yes
-UninstallDisplayName={#MCPTitle} (Paracore MCP Server)
+; ⚠ The parenthetical says what THIS tool DOES, and it must DIFFER from every other
+;   Paracore tool. Never repeat "(Paracore MCP Server)" across tools — that was the
+;   2026-10-09 defect: Core and Forge carried an identical, information-free suffix.
+UninstallDisplayName={#MCPTitle} (Revit API MCP server)
 UninstallDisplayIcon={app}\{#ExeName}.exe
 
 [Languages]

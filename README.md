@@ -23,12 +23,12 @@ and provides MCP tools for running C# code dynamically:
 
 Requirements: Python 3.12, Inno Setup 6.
 
-Produces: `installers/Paracore-MCP-v4.7.0.exe`
+Produces: `installers/Paracore-Core-v4.7.0.exe`
 
 ## Install
 
 1. Install the **Paracore Addin** from the [`paracore`](https://github.com/datadrivenconstruction/paracore) repo
-2. Run `installers/Paracore-MCP-v4.7.0.exe`
+2. Run `installers/Paracore-Core-v4.7.0.exe`
 3. Configure Claude Desktop to use the MCP server
 
 ## Structure

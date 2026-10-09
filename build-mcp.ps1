@@ -15,7 +15,10 @@ if (-not $Version) {
 }
 
 $mcpName = "paracore-mcp"
-$description = "Paracore-MCP"
+# ⚠ The PRODUCT is Paracore-Core; the EXE stays paracore-mcp.exe (user ruling 2026-10-09).
+#   The exe name is the `command` path in every MCP client config, so renaming it would
+#   break every existing install. See MASTER_SYSTEM_SPEC.md ("PRODUCT NAMING").
+$description = "Paracore-Core"
 
 # ── Banner ────────────────────────────────────────────────────────────────
 Write-Host '=================================' -ForegroundColor Cyan
@@ -53,12 +56,12 @@ VSVersionInfo(
     StringFileInfo([
       StringTable(u'040904B0', [
         StringStruct(u'CompanyName', u'Paracore'),
-        StringStruct(u'FileDescription', u'Paracore MCP Server'),
+        StringStruct(u'FileDescription', u'Paracore-Core MCP server'),
         StringStruct(u'FileVersion', u'$Version'),
         StringStruct(u'InternalName', u'$mcpName'),
         StringStruct(u'LegalCopyright', u'MIT License'),
         StringStruct(u'OriginalFilename', u'$mcpName.exe'),
-        StringStruct(u'ProductName', u'Paracore MCP'),
+        StringStruct(u'ProductName', u'Paracore-Core'),
         StringStruct(u'ProductVersion', u'$Version')
       ])
     ]),
@@ -170,7 +173,7 @@ if ($true) {
     else {
         # Run ISCC from repo root with relative .iss path (matching free addin pattern)
         Push-Location $AgentRoot
-        & $ISCC "/dMCPName=mcp" "/dMCPTitle=Paracore-MCP" "/dVersion=$Version" "/dIconPath=$IconFile" "/O$InstallersDir" "paracore-mcp.iss"
+        & $ISCC "/dMCPName=mcp" "/dMCPTitle=Paracore-Core" "/dVersion=$Version" "/dIconPath=$IconFile" "/O$InstallersDir" "paracore-mcp.iss"
         $issExit = $LASTEXITCODE
         Pop-Location
 

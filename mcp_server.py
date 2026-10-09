@@ -82,7 +82,7 @@ init_metrics(log_dir)
 # This is the nuclear option — critical anti-patterns the LLM MUST know
 # before writing any code, even if it skips _ping and _read_extension_methods.
 mcp = FastMCP(
-    "Paracore",
+    "Paracore-Core",
     instructions="""CRITICAL RULES — violations will be rejected:
 
 GLOBALS (use EXACTLY these — PascalCase):
