@@ -45,7 +45,7 @@ exists. `start_binding` / `end_binding` in the manifest record the **association
 value — see the binding-proof note in §1, where a hardcoded `300` and a bound `300` are
 indistinguishable by reading.
 
-Full rationale and the measured evidence: `paracore-mcp/Docs/FAMILY_ARTIFACT_WORKFLOW.md`.
+Full rationale and the measured evidence: `paracore-gen/Docs/FAMILY_ARTIFACT_WORKFLOW.md`.
 
 ## READ THIS FIRST — `Doc` is almost certainly a project document
 

@@ -13,7 +13,7 @@ Python list exercises the pass-through branch and therefore does NOT test
 production. This probe uses the string.
 
 Run:
-    cd paracore-mcp
+    cd paracore-gen
     python .probe_summarizer_e2e.py
 """
 import json

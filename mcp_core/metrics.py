@@ -92,7 +92,7 @@ def _flush():
     """Write metrics to JSON file."""
     if not _METRICS_DIR:
         return
-    path = os.path.join(_METRICS_DIR, "paracore_mcp_metrics.json")
+    path = os.path.join(_METRICS_DIR, "paracore_gen_metrics.json")
     try:
         with open(path, "w") as f:
             json.dump(summarize(), f, indent=2)

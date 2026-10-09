@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Probe a paracore-mcp exe over stdio: list its tools (names AND descriptions), and read
+Probe a paracore-gen exe over stdio: list its tools (names AND descriptions), and read
 the skill resources it will actually serve.
 
 Why behavioural and not extraction
@@ -17,7 +17,7 @@ annotation]" was corrected in the skill and in EXTENSION_METHODS.md, but survive
 are asserted here, both ways: the new text must be present AND the stale text absent.
 
 Usage:
-    <python> spikes/probe_installed_tools.py [path\\to\\paracore-mcp.exe]
+    <python> spikes/probe_installed_tools.py [path\\to\\paracore-gen.exe]
 Default path is the INSTALLED exe.
 """
 import json
@@ -27,7 +27,7 @@ import threading
 import time
 
 EXE = sys.argv[1] if len(sys.argv) > 1 else \
-    r"C:\Users\seyou\AppData\Roaming\paracore-data\mcp-servers\paracore-mcp.exe"
+    r"C:\Users\seyou\AppData\Roaming\paracore-data\mcp-servers\paracore-gen.exe"
 
 EXPECT_TOOLS = ["ping", "get_context", "pick_object", "export_view",
                 "_explore_revit_data", "_execute_dynamic_query",

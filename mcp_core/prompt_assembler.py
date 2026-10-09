@@ -11,7 +11,7 @@ _PROMPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompts
 
 # Canonical source for EXTENSION_METHODS.md / REPL_GUIDE.md:
 # ../paracore/ (free repo, public). Relative from mcp_core/ in
-# paracore-mcp: ../../paracore/
+# paracore-gen: ../../paracore/
 _PARACORE_FREE = os.path.normpath(os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "..", "paracore"))
 
@@ -66,8 +66,8 @@ def _read_shared(filename: str) -> str | None:
     through dev/prod paths."""
     paths = [
         os.path.join(_PARACORE_FREE, filename),                       # dev: ../../paracore/
-        os.path.join(os.path.dirname(_PARACORE_FREE), "paracore-mcp",
-                     filename),                                        # bundled: paracore-mcp/ root
+        os.path.join(os.path.dirname(_PARACORE_FREE), "paracore-gen",
+                     filename),                                        # bundled: paracore-gen/ root
     ]
     for p in paths:
         try:

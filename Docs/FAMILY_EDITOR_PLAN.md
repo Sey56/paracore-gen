@@ -2,7 +2,7 @@
 
 **Status:** proposed, not started
 **Date:** 2026-09-30
-**Scope owner:** `paracore-mcp` (the generalist MCP)
+**Scope owner:** `paracore-gen` (the generalist MCP)
 **Verified against:** Revit 2025, live session, 74 families loaded, project (non-family) document
 
 ---
@@ -460,14 +460,14 @@ than a silent change. Recorded here as OPEN.
 
 `EXTENSION_METHODS.md` carried a `### Watchdogs (background idle-time callbacks)` section
 documenting `Watchdog()` and `WatchdogReport()`. That file is bundled by the installer
-(`paracore-mcp.spec:4`) and served as `paracore://extension-methods`, so the generalist MCP was
+(`paracore-gen.spec:4`) and served as `paracore://extension-methods`, so the generalist MCP was
 advertising an API gated behind `LicenseContext.RequireEnterprise("Sentinels")`.
 
 **Not** in the always-injected prompt — `build_prompt()` composes only from
 `mcp_core/prompts/*.md`, which is clean (verified by grep). The exposure was via the resource
 and the `_read_extension_methods` tool.
 
-**Status: FIXED (2026-09-30)** in `paracore-mcp/EXTENSION_METHODS.md` — the section is removed
+**Status: FIXED (2026-09-30)** in `paracore-gen/EXTENSION_METHODS.md` — the section is removed
 and the file re-verified clean. **Still present** in the sibling canonical copy at
 `paracore/EXTENSION_METHODS.md` (the public free repo), which `prompt_assembler._read_shared()`
 prefers in dev mode. That copy is a different repository and a public doc, so it was left for
@@ -515,7 +515,7 @@ teaches the agent that lints are noise, which is precisely the habit the layer e
 (`get_Parameter("Name")`). Both remain advisory. Regression-guarded by the same probe.
 
 **Status: D-MCP-6 and D-MCP-7 FIXED (2026-10-02)** in `mcp_core/tool_helpers.py`.
-⚠ Both are **bundled** (`paracore-mcp.spec:4`) → they do not reach the *running* MCP until the
+⚠ Both are **bundled** (`paracore-gen.spec:4`) → they do not reach the *running* MCP until the
 server is rebuilt and reinstalled.
 
 ---

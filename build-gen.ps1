@@ -14,11 +14,16 @@ if (-not $Version) {
     }
 }
 
-$mcpName = "paracore-mcp"
-# ⚠ The PRODUCT is Paracore-Core; the EXE stays paracore-mcp.exe (user ruling 2026-10-09).
-#   The exe name is the `command` path in every MCP client config, so renaming it would
-#   break every existing install. See MASTER_SYSTEM_SPEC.md ("PRODUCT NAMING").
-$description = "Paracore-Core"
+# ⚠ ONE name for everything (2026-10-09): repo, build script, exe, installer, display name,
+#   MCP handshake and config key are ALL `paracore-gen` / `Paracore-Gen`. There is no
+#   product-name-vs-exe-name split any more — that split existed only because the exe was
+#   called paracore-mcp.exe and could not be renamed while installs depended on the path.
+#   $mcpName drives the PyInstaller --name (⇒ dist\paracore-gen.exe + paracore-gen.spec),
+#   the icon path, InternalName and OriginalFilename. Change it and you MUST change
+#   paracore-gen.iss, mcp_server.py's FastMCP() and the client's mcp.json to match —
+#   the surfaces are pinned in paracore-ecosystem/MASTER_SYSTEM_SPEC.md ("PRODUCT NAMING").
+$mcpName = "paracore-gen"
+$description = "Paracore-Gen"
 
 # ── Banner ────────────────────────────────────────────────────────────────
 Write-Host '=================================' -ForegroundColor Cyan
@@ -56,12 +61,12 @@ VSVersionInfo(
     StringFileInfo([
       StringTable(u'040904B0', [
         StringStruct(u'CompanyName', u'Paracore'),
-        StringStruct(u'FileDescription', u'Paracore-Core MCP server'),
+        StringStruct(u'FileDescription', u'Paracore-Gen MCP server'),
         StringStruct(u'FileVersion', u'$Version'),
         StringStruct(u'InternalName', u'$mcpName'),
         StringStruct(u'LegalCopyright', u'MIT License'),
         StringStruct(u'OriginalFilename', u'$mcpName.exe'),
-        StringStruct(u'ProductName', u'Paracore-Core'),
+        StringStruct(u'ProductName', u'Paracore-Gen'),
         StringStruct(u'ProductVersion', u'$Version')
       ])
     ]),
@@ -165,15 +170,18 @@ if ($true) {
 
     $InstallersDir = Join-Path $AgentRoot "installers"
     if (!(Test-Path $InstallersDir)) { New-Item -ItemType Directory -Path $InstallersDir | Out-Null }
-    $IssFile = Join-Path $AgentRoot "paracore-mcp.iss"
+    $IssFile = Join-Path $AgentRoot "paracore-gen.iss"
     if (-not (Test-Path $IssFile)) {
-        Write-Host "ERROR: paracore-mcp.iss not found at $IssFile" -ForegroundColor Red
+        Write-Host "ERROR: paracore-gen.iss not found at $IssFile" -ForegroundColor Red
         exit 1
     }
     else {
         # Run ISCC from repo root with relative .iss path (matching free addin pattern)
+        # ⚠ /dMCPName is the EXE stem (paracore-<MCPName>); /dMCPTitle is the display name.
+        #   They differ only in case, and that is deliberate: `gen` is a filename fragment,
+        #   `Paracore-Gen` is the product.
         Push-Location $AgentRoot
-        & $ISCC "/dMCPName=mcp" "/dMCPTitle=Paracore-Core" "/dVersion=$Version" "/dIconPath=$IconFile" "/O$InstallersDir" "paracore-mcp.iss"
+        & $ISCC "/dMCPName=gen" "/dMCPTitle=Paracore-Gen" "/dVersion=$Version" "/dIconPath=$IconFile" "/O$InstallersDir" "paracore-gen.iss"
         $issExit = $LASTEXITCODE
         Pop-Location
 

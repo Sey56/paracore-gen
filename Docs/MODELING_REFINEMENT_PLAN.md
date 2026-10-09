@@ -66,7 +66,7 @@ call 2:  __sb.Append("second");
 1. **REPL state DOES persist between calls.** One session id (`mcp-session`) is used for every
    call, and the engine keys its Roslyn `ScriptState` by that id. Proven: `var __pv = 4242;` in
    one call, `Println(__pv + 1)` in the next printed **4243**.
-   ⚠ `paracore-mcp/.workbuddy-ai/memory/MEMORY.md` says the opposite ("REPL state does NOT
+   ⚠ `paracore-gen/.workbuddy-ai/memory/MEMORY.md` says the opposite ("REPL state does NOT
    persist between calls"). **That entry is wrong** and is corrected in this pass.
 2. **`SemanticTrackingGuard.ComputeSkipCalls` compiles only the CURRENT submission.**
    A receiver declared in an earlier call is unresolvable in that throwaway compilation.

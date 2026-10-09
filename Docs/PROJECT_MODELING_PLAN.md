@@ -1,9 +1,9 @@
-# Project modeling in paracore-mcp — what to add, and what not to
+# Project modeling in paracore-gen — what to add, and what not to
 
 **Date:** 2026-10-02
 **Trigger:** a Claude Desktop session asked to model the Empire State Building from reference
 photos and overall dimensions produced a **massing form** — no walls, floors, rooms or levels.
-**Question:** can paracore-mcp model real buildings with standard Revit elements?
+**Question:** can paracore-gen model real buildings with standard Revit elements?
 
 ---
 
@@ -286,7 +286,7 @@ engine (§4), it becomes its own **shared** file, which syncs cleanly.
 6. **Empty.** Nothing here needs it.
 
 ⚠ Track A and Track B both change files **bundled inside the MCP exe**. Per the project's own
-standing trap: a skill edit is invisible to the agent until `build-mcp.ps1` + install + restart, and
+standing trap: a skill edit is invisible to the agent until `build-gen.ps1` + install + restart, and
 liveness must be proved by reading the `skill://…` resource off the running server — an mtime only
 proves a build *may* have run.
 

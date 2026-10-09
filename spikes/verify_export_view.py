@@ -1,7 +1,7 @@
 """
 Offline verification for the export_view tool + the project-modeling skill.
 
-Run with the build venv, from the paracore-mcp root:
+Run with the build venv, from the paracore-gen root:
     mcp-build/.venv/Scripts/python.exe spikes/verify_export_view.py
 
 Why a script and not a REPL one-liner: importing mcp_server.py is the ONLY thing that

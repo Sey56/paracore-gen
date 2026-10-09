@@ -14,7 +14,7 @@
 //  Run:  explore_revit_data  (read-only build+verify)  or
 //        execute_dynamic_query (it writes .rfa and manifest.json to disk)
 //
-//  Convention + rationale: paracore-mcp/Docs/FAMILY_ARTIFACT_WORKFLOW.md
+//  Convention + rationale: paracore-gen/Docs/FAMILY_ARTIFACT_WORKFLOW.md
 //  API detail + traps:     skill://family-authoring/SKILL.md
 // ============================================================================
 

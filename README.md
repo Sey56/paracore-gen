@@ -1,8 +1,13 @@
-# Paracore MCP
+# Paracore-Gen
 
 The generalist Model Context Protocol server for Paracore — enables Claude Desktop,
 Cursor, VS Code, and any MCP-compatible client to explore and control Revit through
 natural language.
+
+⚠ The product is **`Paracore-Gen`** on every surface (renamed 2026-10-09, from
+`Paracore-MCP`): repo, build script, exe, installer, `UninstallDisplayName`, the
+`FastMCP(...)` handshake and the client's config key. See
+`paracore-ecosystem/MASTER_SYSTEM_SPEC.md` → **"PRODUCT NAMING"**.
 
 ## What it does
 
@@ -18,17 +23,17 @@ and provides MCP tools for running C# code dynamically:
 ## Build
 
 ```powershell
-./build-mcp.ps1
+./build-gen.ps1
 ```
 
 Requirements: Python 3.12, Inno Setup 6.
 
-Produces: `installers/Paracore-Core-v4.7.0.exe`
+Produces: `installers/Paracore-Gen-v4.7.0.exe`
 
 ## Install
 
 1. Install the **Paracore Addin** from the [`paracore`](https://github.com/datadrivenconstruction/paracore) repo
-2. Run `installers/Paracore-Core-v4.7.0.exe`
+2. Run `installers/Paracore-Gen-v4.7.0.exe`
 3. Configure Claude Desktop to use the MCP server
 
 ## Structure

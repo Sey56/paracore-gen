@@ -128,8 +128,8 @@ C:\Users\seyou\Documents\ParacoreFamilies\
 **Why `Documents\ParacoreFamilies\`, and not a repo.**
 
 - The families are **user work products**, not tool source — **and the tool ships.**
-  ⚠⚠ **VERIFIED 2026-10-02:** the whole `paracore-mcp` working tree is copied into
-  `paracore/rap-web/src-tauri/server-release/paracore-mcp/`, and `tauri.conf.json:82-83`
+  ⚠⚠ **VERIFIED 2026-10-02:** the whole `paracore-gen` working tree is copied into
+  `paracore/rap-web/src-tauri/server-release/paracore-gen/`, and `tauri.conf.json:82-83`
   declares `server-release` as a **bundle resource** — so it goes into the shipped installer.
   Confirmed by listing the built installer (see §13). A specific villa's furniture does not
   belong in a distributed product.
@@ -139,10 +139,10 @@ C:\Users\seyou\Documents\ParacoreFamilies\
   the absolute `.rfa` path.
 
 **The tooling ships; the work stays local.** The convention, the template and the manifest
-spec live in `paracore-mcp/` (§9) — they *should* ship, because every user benefits. The user's
+spec live in `paracore-gen/` (§9) — they *should* ship, because every user benefits. The user's
 families live here.
 
-⚠ **This is not a hypothetical.** Placing these families under `paracore-mcp/` would have put
+⚠ **This is not a hypothetical.** Placing these families under `paracore-gen/` would have put
 them in the installer alongside everything else that is already there — see §13.
 
 ---
@@ -315,7 +315,7 @@ the general library would generalise. If §6.3 is built later, these directories
 entries.
 
 ⚠ **The one thing this needs from the MCP is a rebuild** — the pointer in the skill (§10) is
-bundled by `paracore-mcp.spec`, so it does not reach the *running* MCP until the server is
+bundled by `paracore-gen.spec`, so it does not reach the *running* MCP until the server is
 rebuilt and reinstalled. Until then the convention is live in the repo and in the local folder,
 but the served `skill://family-authoring/SKILL.md` will not mention it.
 
@@ -415,7 +415,7 @@ Found while choosing a home for the build scripts. It is **not** a family-author
 `paracore/build-frontend.ps1:142` bundles the MCP into the desktop app:
 
 ```powershell
-robocopy $agentSource (Join-Path $serverReleaseDir "paracore-mcp") /E `
+robocopy $agentSource (Join-Path $serverReleaseDir "paracore-gen") /E `
     /XD .venv __pycache__ .ruff_cache .git mcp-build build dist installers /XF *.spec *.pyc
 ```
 
@@ -433,12 +433,12 @@ resource**, so whatever lands there goes into the installer.
 
 | entry | size |
 |:---|---:|
-| `server-release\paracore-mcp\.workbuddy-ai\memory\2026-09-30.md` | 87,850 |
-| `server-release\paracore-mcp\.workbuddy-ai\memory\2026-10-01.md` | 33,059 |
-| `server-release\paracore-mcp\.workbuddy-ai\memory\2026-10-02.md` | 4,495 |
-| `server-release\paracore-mcp\.workbuddy-ai\memory\MEMORY.md` | 5,096 |
-| `server-release\paracore-mcp\paracore_mcp.log` | 1,372 |
-| `server-release\paracore-mcp\spikes\DoorScratch.rfa` | 495,616 |
+| `server-release\paracore-gen\.workbuddy-ai\memory\2026-09-30.md` | 87,850 |
+| `server-release\paracore-gen\.workbuddy-ai\memory\2026-10-01.md` | 33,059 |
+| `server-release\paracore-gen\.workbuddy-ai\memory\2026-10-02.md` | 4,495 |
+| `server-release\paracore-gen\.workbuddy-ai\memory\MEMORY.md` | 5,096 |
+| `server-release\paracore-gen\paracore_gen.log` | 1,372 |
+| `server-release\paracore-gen\spikes\DoorScratch.rfa` | 495,616 |
 
 plus **20 files** under `spikes\`. The `.workbuddy-ai` memory is the agent's own project notes —
 client project names, defect lists, business context.
@@ -453,6 +453,6 @@ NSIS installer is the one proven by listing. Treat both as affected.
 
 ⚠ **Existing installers still contain the leak** — they would need a rebuild to be clean.
 
-⚠ **And this is why the families are not in a repo.** Had they gone under `paracore-mcp/`, they
+⚠ **And this is why the families are not in a repo.** Had they gone under `paracore-gen/`, they
 would have been in that installer too. `spikes/DoorScratch.rfa` shows it is not a hypothetical:
 it is **untracked** in git, and it shipped anyway — because `/E` does not consult `.gitignore`.

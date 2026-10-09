@@ -1,4 +1,4 @@
-# PROJECT_SPEC.md — paracore-mcp
+# PROJECT_SPEC.md — paracore-gen
 
 ## 0. ⚠⚠ READ THE MASTER SPEC FIRST
 
@@ -12,8 +12,8 @@ C:\Users\seyou\Paracore\paracore-ecosystem\MASTER_SYSTEM_SPEC.md
 ```
 
 It lives **outside every project repo** — in the `paracore-ecosystem` repo, a **sibling** of this
-one. The sections that bind this repo: **§3** (the artifact authority table) and **§4** (the change
-classes).
+one. The sections that bind this repo: **§3** (the artifact authority table), **§4** (the change
+classes) and **"PRODUCT NAMING"** (the four naming surfaces).
 
 ⚠ **If that file is not present, STOP and ask for it. Do not infer the cross-project rules.**
 ⚠ This is a **pointer, not a copy** — the master's rules are deliberately not repeated here.
@@ -22,11 +22,19 @@ classes).
 
 ## 1. What this project is
 
-The **generalist MCP server**: it lets an AI drive Revit through the engine's REPL. A separate
-product from the takeoff tool, and the **shared Python core** other MCPs borrow from.
+The **generalist MCP server** — product name **`Paracore-Gen`**: it lets an AI drive Revit through
+the engine's REPL. A separate product from the takeoff tool, and the **shared Python core** other
+MCPs borrow from.
 
-⚠ Other MCPs address this repo **by name, never by position** — `PARACORE_MCP_HOME` with an absolute
-default. A hard-coded `..\..\..\paracore-mcp` climb silently misses when a caller moves.
+⚠⚠ **The name is `paracore-gen` on EVERY surface** (renamed 2026-10-09, from `paracore-mcp`): the
+repo, `build-gen.ps1`, `paracore-gen.iss`, the exe, the installer, `UninstallDisplayName`, the
+`FastMCP(...)` handshake and the client's config key. There is no longer a product-name-vs-exe-name
+split. The surfaces and the migration are pinned in the master spec's **"PRODUCT NAMING"**.
+
+⚠ Other MCPs address this repo **by name, never by position** — `PARACORE_GEN_HOME` with an absolute
+default. A hard-coded `..\..\..\paracore-gen` climb silently misses when a caller moves.
+⚠ `PARACORE_MCP_HOME` is the **pre-rename name of the same variable**; callers still honour it as a
+fallback so an environment that sets the old one keeps building. New callers set the new one.
 
 ## 2. Where things live
 
@@ -35,7 +43,7 @@ default. A hard-coded `..\..\..\paracore-mcp` climb silently misses when a calle
 | Shared Python core | `mcp_core/` — `skills/*/SKILL.md`, `prompts/*.md` |
 | Agent skills / prompts (authority) | `mcp_core/skills/`, `mcp_core/prompts/` |
 | Engine API docs (**authority**) | `EXTENSION_METHODS.md`, `REPL_GUIDE.md` |
-| Build | `build-mcp.ps1` → `installers/` |
+| Build | `build-gen.ps1` → `installers/` |
 
 ## 3. Invariants — this project must not break these
 
@@ -46,8 +54,9 @@ default. A hard-coded `..\..\..\paracore-mcp` climb silently misses when a calle
   returns 0 exactly like absent text.
 - ⚠ A **missing `--add-data` ships a broken agent while the build reports success.** A source run
   looks fine; only the exe is broken.
-- ⚠ **`paracore-mcp.spec` is NOT used** — the build is driven by `--add-data` flags. Editing the spec
-  is silently discarded.
+- ⚠ **`paracore-gen.spec` is NOT used** — the build is driven by `--add-data` flags. Editing the spec
+  is silently discarded. ⚠ It is also **generated**: the build writes it from `--name`, so a stale
+  `paracore-mcp.spec` left over from the pre-rename build is dead weight, not a config file.
 - ⚠ `EXTENSION_METHODS.md` and `REPL_GUIDE.md` here are the **authority**; other copies are
   generated. ⚠ **A generated copy is never edited — the next regeneration discards it.**
 - ⚠ **`pytest` rotates and deletes `%TEMP%\pytest-of-<user>`** — a test run *is* a delete.

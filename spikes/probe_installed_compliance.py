@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Probe the INSTALLED paracore-mcp.exe's compliance checker over stdio JSON-RPC.
+Probe the INSTALLED paracore-gen.exe's compliance checker over stdio JSON-RPC.
 
 Why this exists
 ---------------
@@ -30,7 +30,7 @@ import sys
 import threading
 import time
 
-EXE = r"C:\Users\seyou\AppData\Roaming\paracore-data\mcp-servers\paracore-mcp.exe"
+EXE = r"C:\Users\seyou\AppData\Roaming\paracore-data\mcp-servers\paracore-gen.exe"
 
 # Text that only the NEW checker emits / must no longer emit.
 NEW_LINT_MARKER = "A collector over another document"   # D-MCP-7 collector narrowing

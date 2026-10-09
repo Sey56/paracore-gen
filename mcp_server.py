@@ -9,7 +9,7 @@ if getattr(sys, 'frozen', False):
     if base_dir not in sys.path:
         sys.path.insert(0, base_dir)
 else:
-    # In development mode, mcp_server.py is at paracore-mcp root
+    # In development mode, mcp_server.py is at paracore-gen root
     base_dir = os.path.dirname(os.path.abspath(__file__))
     if base_dir not in sys.path:
         sys.path.insert(0, base_dir)
@@ -20,7 +20,7 @@ def _get_resource_path(filename: str) -> str:
         # PyInstaller extracts --add-data files into sys._MEIPASS
         return os.path.join(sys._MEIPASS, filename)
     else:
-        # Dev mode: docs are alongside mcp_server.py in paracore-mcp root
+        # Dev mode: docs are alongside mcp_server.py in paracore-gen root
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
 
 import json
@@ -64,14 +64,14 @@ else:
     log_dir = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(log_dir, exist_ok=True)
 
-log_file = os.path.join(log_dir, "paracore_mcp.log")
+log_file = os.path.join(log_dir, "paracore_gen.log")
 
 from logging.handlers import RotatingFileHandler
 _mcp_handler = RotatingFileHandler(log_file, maxBytes=1_000_000, backupCount=3)
 _mcp_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 _mcp_handler.setLevel(logging.INFO)
 
-logger = logging.getLogger("paracore-mcp")
+logger = logging.getLogger("paracore-gen")
 logger.setLevel(logging.INFO)
 logger.addHandler(_mcp_handler)
 logger.info(f"MCP Logging initialized at {log_file}")
@@ -82,7 +82,7 @@ init_metrics(log_dir)
 # This is the nuclear option — critical anti-patterns the LLM MUST know
 # before writing any code, even if it skips _ping and _read_extension_methods.
 mcp = FastMCP(
-    "Paracore-Core",
+    "Paracore-Gen",
     instructions="""CRITICAL RULES — violations will be rejected:
 
 GLOBALS (use EXACTLY these — PascalCase):

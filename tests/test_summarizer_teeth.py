@@ -8,7 +8,7 @@ The source file is never modified. Each injection is reverted by reloading the
 module, and a control run proves the suite is green on unmodified code.
 
 Run:
-    cd paracore-mcp
+    cd paracore-gen
     python tests/test_summarizer_teeth.py
 """
 import contextlib

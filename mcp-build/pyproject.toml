@@ -1,5 +1,5 @@
 [project]
-name = "paracore-mcp-build"
+name = "paracore-gen-build"
 version = "0.1.0"
 description = "Isolated build environment for the Paracore MCP server executable"
 requires-python = ">=3.12"
