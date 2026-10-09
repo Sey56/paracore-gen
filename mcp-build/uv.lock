@@ -704,7 +704,7 @@ wheels = [
 ]
 
 [[package]]
-name = "paracore-mcp-build"
+name = "paracore-gen-build"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
