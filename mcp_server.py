@@ -434,17 +434,13 @@ def read_extension_methods() -> str:
 # Nine operation-based skills. Each is a plain @mcp.resource under skill:// URIs.
 # Pre-loaded at startup, served from RAM. Claude Desktop discovers them automatically.
 
-_SKILL_DESCRIPTIONS: dict[str, str] = {
-    "query-filter":       "Element retrieval, filtering, and sorting — GetElements, WhereParam, WhereMatches, OrderByParam",
-    "aggregate-group":    "Grouping, counting, and summing — GroupByParam, SumParam, aggregated totals",
-    "parameter-access":   "Reading element parameters — GetStr, GetNum, GetVal, GetInt, type-level accessors",
-    "write-modify":       "Modifying elements — SetVal, SetNum, SetParam, Delete, Hide, Isolate, Transact",
-    "display-visualize":  "Rendering data — Table, BarGraph, PieGraph, LineGraph, ExportImage (view → image file), Println, Select projection",
-    "discovery-debug":    "Exploring unknown elements — CombinedParams, Peek, BuiltInParams, GeometrySummary",
-    "create-geometry":    "Creating new Revit elements — Wall.Create, Floor.Create, XYZ, CurveLoop, InputUnit",
-    "identity-orientation": "Element identity and door/window data — FamilyName, Matches, RoomFrom, Handing",
-    "materials-units":    "Materials, unit conversion, numeric helpers — InputUnit, OutputUnit, IsAlmostEqualTo",
-}
+# The REPL / dynamic-execution skill set. ⚠ GENERATED into mcp_core/shared_skills.py by
+# `paracore/scripts/gen-engine-docs.py` — paracore-gen holds the authority and the other
+# engine-driving MCPs get a copy. Do not inline these here.
+# ⚠ paracore-gen is the generalist: it has NO domain skills, so the shared set is the whole set.
+from mcp_core.shared_skills import SHARED_SKILL_DESCRIPTIONS
+
+_SKILL_DESCRIPTIONS: dict[str, str] = dict(SHARED_SKILL_DESCRIPTIONS)
 
 _SKILL_CACHE: dict[str, str] = {}
 

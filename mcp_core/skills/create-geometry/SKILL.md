@@ -8,10 +8,11 @@ description: Creating Revit elements — Wall.Create, Floor.Create, FamilyInstan
 Create new Revit elements using the raw Revit API. Full access to `Autodesk.Revit.DB` — this is a real C# REPL, not a limited DSL. `Transact()` REQUIRED for all creation.
 
 ⚠ **This page is the single-element reference.** For a whole **building** — levels, plan views,
-slabs, walls, openings, rooms, per level — the **`paracore-model`** MCP carries the build order,
-the traps, and the verification recipes. This page shows the core creation calls; that one shows
-the building. ⚠ Do **not** build a building by massing: a `Form` cannot become a room. Family
-(`.rfa`) authoring is the **`paracore-family`** MCP.
+slabs, walls, openings, rooms, per level — the build order, the traps and the verification
+recipes live in the modelling skill: `project-modeling` (**`paracore-model`**) or
+`family-authoring` (**`paracore-family`**). This page shows the core creation calls; those show
+the building. ⚠ Do **not** build a building out of a `Form`: a `Form` cannot become a room.
+Family (`.rfa`) authoring and conceptual massing belong to the **`paracore-family`** MCP.
 
 ## Core Types (pre-imported, no using needed)
 
