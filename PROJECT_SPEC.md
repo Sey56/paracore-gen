@@ -40,8 +40,7 @@ split. The surfaces and the migration are pinned in the master spec's **"PRODUCT
 
 ⚠ Other MCPs address this repo **by name, never by position** — `PARACORE_GEN_HOME` with an absolute
 default. A hard-coded `..\..\..\paracore-gen` climb silently misses when a caller moves.
-⚠ `PARACORE_MCP_HOME` is the **pre-rename name of the same variable**; callers still honour it as a
-fallback so an environment that sets the old one keeps building. New callers set the new one.
+⚠ The pre-rename `PARACORE_MCP_HOME` fallback was **removed 2026-10-10** — set `PARACORE_GEN_HOME`.
 
 ## 2. Where things live
 

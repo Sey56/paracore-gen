@@ -1,7 +1,7 @@
 [project]
-name = "paracore-agent"
-version = "4.7.0"
-description = "Paracore AI brain — in-app agent, generalist MCP, and shared MCP core for Revit automation."
+name = "paracore-gen"
+version = "2.0.0"
+description = "Paracore-Gen - the generalist Revit MCP server: generates and runs C# through the Paracore engine."
 license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
