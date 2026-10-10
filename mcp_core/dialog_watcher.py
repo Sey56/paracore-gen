@@ -367,6 +367,97 @@ def extract_dialog_text(h) -> str:
     return " | ".join(dict.fromkeys(parts))
 
 
+# ---------------------------------------------------------------------------
+# THE FAILURE MESSAGE — what the dialog is actually complaining about
+# ---------------------------------------------------------------------------
+# ⚠⚠ MEASURED LIVE, 2026-10-10 (Revit 2025.4). `GetWindowTextW` returns the CAPTION
+#   of another process's window, not its content. For a Button the caption IS the
+#   label, so buttons read fine — but a Revit failure TaskDialog carries its message
+#   in an `Edit`-class control whose caption is EMPTY, so `GetWindowTextW` gives "".
+#   That is the entire reason this file used to claim the text "cannot be read from
+#   outside": the MECHANISM was wrong, not the window.
+#
+#   `SendMessageW(WM_GETTEXT)` asks the owning thread for the real text, and the
+#   system marshals it across processes. Measured on the same control, same instant:
+#       GetWindowTextW           -> ""
+#       SendMessageW(WM_GETTEXT) -> "Highlighted walls overlap. One of them may be
+#                                    ignored when Revit finds room boundaries. ..."
+#
+#   ⚠ No new dependency — the same ctypes/user32 the rest of this module already uses.
+WM_GETTEXT = 0x000D
+WM_GETTEXTLENGTH = 0x000E
+
+
+def wtext_xproc(h) -> str:
+    """Another process's window text — the CONTENT, not the caption (see above)."""
+    try:
+        n = int(SendMessageW(h, WM_GETTEXTLENGTH, 0, 0))
+    except Exception:
+        return wtext(h)
+    if n <= 0:
+        return wtext(h)
+    buf = ctypes.create_unicode_buffer(n + 4)
+    try:
+        SendMessageW(h, WM_GETTEXT, len(buf), buf)
+    except Exception:
+        return wtext(h)
+    return buf.value
+
+
+def _is_counter(t: str) -> bool:
+    """True for the bare "1 of 1" counter a multi-failure dialog carries."""
+    p = t.split()
+    return len(p) == 3 and p[1] == "of" and p[0].isdigit() and p[2].isdigit()
+
+
+def failure_text(h) -> str:
+    """
+    The dialog's FAILURE MESSAGE — the `Edit` control(s), read cross-process.
+
+    ⚠ A Revit failure TaskDialog puts the message in an Edit-class control that
+    `extract_dialog_text` never looks at (it scans only Static/Link/Text classes)
+    AND that `GetWindowTextW` reports as empty. Both had to be fixed at once.
+    """
+    parts = []
+    for c in children(h):
+        if is_button(c):
+            continue
+        for g in [c] + children(c):
+            if is_button(g):
+                continue
+            cl = wclass(g)
+            if cl == "Edit" or cl.startswith("Edit"):
+                t = wtext_xproc(g).strip()
+                if t and not _is_counter(t):
+                    parts.append(t)
+    return " | ".join(dict.fromkeys(parts))
+
+
+# ---------------------------------------------------------------------------
+# THE CAPTURE BUFFER — what the watcher answered, for the agent to read back
+# ---------------------------------------------------------------------------
+# ⚠ The agent's tool result is assembled by the MCP's tools.py AFTER the call
+#   returns; the watcher cannot reach into it. So the watcher leaves a record here
+#   and tools.py drains it (pop_captured) and appends it to the result.
+# ⚠ Only dialogs answered INSIDE revit_call() are recorded, so a drain right after
+#   the call yields exactly that call's dialogs — no correlation problem.
+_captured = []
+_captured_lock = threading.Lock()
+
+
+def _record(entry) -> None:
+    with _captured_lock:
+        _captured.append(entry)
+
+
+def pop_captured() -> list:
+    """Return the dialogs recorded since the last drain, and clear them."""
+    with _captured_lock:
+        out = list(_captured)
+        _captured.clear()
+    return out
+
+
 def scan_dialogs(revit_hwnd):
     """Modal dialogs owned by the Revit main window."""
     out = []
@@ -392,7 +483,8 @@ def scan_dialogs(revit_hwnd):
         if not (labels & set(KEEP_LABELS) or labels & set(DISCARD_LABELS)):
             continue
         out.append({"hwnd": h, "cls": wclass(h), "title": wtext(h),
-                    "text": extract_dialog_text(h), "buttons": btns})
+                    "text": extract_dialog_text(h), "message": failure_text(h),
+                    "buttons": btns})
     return out
 
 
@@ -526,18 +618,32 @@ def _handle(dlg) -> bool:
     h, t, action, reason = decide(dlg)
     label_list = ", ".join("%r%s" % (x, "" if en else "(disabled)")
                            for _, x, en in dlg["buttons"])
-    log("DIALOG hwnd=%d title=%r text=%r buttons=[%s]"
-        % (dlg["hwnd"], dlg["title"], dlg["text"][:400], label_list))
+    log("DIALOG hwnd=%d title=%r text=%r message=%r buttons=[%s]"
+        % (dlg["hwnd"], dlg["title"], dlg["text"][:400],
+           dlg.get("message", "")[:400], label_list))
     log("  decide: action=%s reason=%s" % (action, reason))
+
+    # ⚠ Record BEFORE clicking — the click destroys the dialog, and with it the
+    #   message. This record is what tools.py hands back to the agent.
+    entry = {"title": dlg["title"], "text": dlg["text"],
+             "message": dlg.get("message", ""), "action": action, "reason": reason,
+             "buttons": [x for _, x, _ in dlg["buttons"]], "pressed": None,
+             "closed": False}
 
     if action == "needs-human":
         log("  !! NEEDS-HUMAN: %s -- left for the operator" % reason)
+        _record(entry)
         return False
     if h is None:
         log("  !! %s, but no enabled button -- left for the operator" % action)
+        _record(entry)
         return False
 
     ok, how = click(h)
+    entry["closed"] = bool(ok)
+    entry["pressed"] = t if ok else None
+    entry["how"] = how
+    _record(entry)
     if ok:
         log("  -> clicked %r  [%s] CLOSED via %s" % (t, action, how))
         return True

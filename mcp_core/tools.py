@@ -91,6 +91,55 @@ class RevitBusy(Exception):
         super().__init__(f"{label} running for {elapsed:.1f}s")
 
 
+# ── The dialog watcher's read-back channel ───────────────────────────────
+# ⚠⚠ WHY THIS EXISTS: a Revit failure dialog BLOCKS the tool call, and the resident
+#   watcher closes it so the call can return — but the edit Revit refused has
+#   already been rolled back. Without this note the agent sees a SUCCESS and then
+#   cannot find the element it believes it created ("I created the Wall Opening —
+#   where did it go?"). The note says what the dialog said and which button was
+#   pressed, so the agent can ADJUST instead of re-trying blindly.
+def _watcher():
+    """The resident dialog watcher, resolved the way grpc_client resolves it."""
+    import sys as _sys
+    for _name in ("mcp_core.dialog_watcher", "forge_core.dialog_watcher"):
+        _mod = _sys.modules.get(_name)
+        if _mod is not None:
+            return _mod
+    return None
+
+
+def _drain_dialogs() -> list:
+    """Take (and clear) the dialogs the watcher answered. [] when there are none."""
+    mod = _watcher()
+    if mod is None:
+        return []
+    try:
+        return mod.pop_captured()
+    except Exception:
+        return []
+
+
+def _dialog_note() -> str:
+    """Render the watcher's records as a note appended to the tool result."""
+    notes = _drain_dialogs()
+    if not notes:
+        return ""
+    lines = ["", "",
+             "⚠ REVIT SHOWED A DIALOG WHILE THIS CALL RAN — the watcher answered it to unblock you."]
+    for n in notes:
+        msg = (n.get("message") or "").strip()
+        if msg:
+            lines.append("   message : %s" % msg)
+        elif (n.get("text") or "").strip():
+            lines.append("   dialog  : %s" % n["text"].strip())
+        btns = ", ".join(n.get("buttons") or []) or "(none)"
+        pressed = n.get("pressed") or "(left for the operator)"
+        lines.append("   buttons : %s   ->   pressed: %s" % (btns, pressed))
+    lines.append("   ⚠ If Revit reported an ERROR, the edit may have been ROLLED BACK — verify the")
+    lines.append("     element exists before assuming success, then adjust the operation.")
+    return "\n".join(lines)
+
+
 @contextmanager
 def single_flight(label: str):
     """Allow exactly one in-flight Revit execution. Refuse (never queue) a second."""
@@ -100,6 +149,9 @@ def single_flight(label: str):
         started = _EXEC_STARTED_AT if _EXEC_STARTED_AT is not None else time.perf_counter()
         raise RevitBusy(_EXEC_LABEL or "a previous request", time.perf_counter() - started)
 
+    # ⚠ Clear stale watcher records so a dialog from a PREVIOUS call cannot be
+    #   reported against this one (a call that raised after a dialog would leave one).
+    _drain_dialogs()
     _EXEC_STARTED_AT = time.perf_counter()
     _EXEC_LABEL = label
     try:
@@ -178,8 +230,8 @@ def handle_execution_result(result: dict, source_code: str = "") -> str:
             err = "; ".join(str(e) for e in err)
         return READ_ONLY_VIOLATION_MSG % err
     if result["is_success"]:
-        return summarize_execution_result(result)
-    return format_execution_error(result, source_code)
+        return summarize_execution_result(result) + _dialog_note()
+    return format_execution_error(result, source_code) + _dialog_note()
 
 
 # ── Tool implementations ───────────────────────────────────────────────────
