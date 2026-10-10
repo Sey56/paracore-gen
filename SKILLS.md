@@ -1,6 +1,11 @@
 # Paracore Method Skills
 
-Twelve operation-based skills. Read `query-filter` first (always needed), then pull others as the task demands.
+Nine operation-based skills. Read `query-filter` first (always needed), then pull others as the task demands.
+
+⚠ This MCP is the **generalist** — it generates and runs REPL scripts for *any* Revit task. These nine
+skills cover the Paracore **extension methods**; the raw Revit API, LINQ and .NET are always in scope
+when the methods are not enough. Deep **modelling** and **family (.rfa)** recipes live in the
+`paracore-model` and `paracore-family` MCPs.
 
 ## query-filter
 Element retrieval, filtering, and sorting.
@@ -30,7 +35,7 @@ Transaction rules (single auto-transact, collection bulk, manual foreach), SetNu
 Tables, charts, image export, and output.
 **When:** Rendering results — or looking at the model.
 
-Table() safe/forbidden patterns, column naming rules (underscores to spaces, no unit suffixes), BarGraph/PieGraph/LineGraph (after GroupByParam, no Select needed), Println (status only, never for data), LINQ Select projection for Table.
+Table() safe/forbidden patterns, column naming rules (underscores to spaces, no unit suffixes), BarGraph/PieGraph/LineGraph (after GroupByParam, no Select needed), Println (status only, never for data), LINQ Select projection for Table, export_view (snapshot the model — see its `annotations` modes).
 
 ## discovery-debug
 Exploring unknown elements.
@@ -44,12 +49,6 @@ Creating new Revit elements.
 
 XYZ, Line.CreateBound, Arc.Create, CurveLoop, Wall.Create, Floor.Create, FamilyInstance placement, column placement, InputUnit (human to feet), pre-imported namespaces, Transact REQUIRED for all creation.
 
-## project-modeling
-Modelling a real building, per level.
-**When:** "Model a building", "make it 3 storeys", "add walls and rooms", "build it from these dimensions". **NOT** massing.
-
-The 14 build recipes in order — levels, plan views, grids, footprint loop (with explicit closure validation), floor slab, walls, curtain walls, roof/terrace, rooms, doors/windows, stairs, columns/beams, wall-type duplication, family loading — each with its own trap. Plus the three verification tiers (Tier 1 re-derive counts + Doc.GetWarnings() after EVERY build; Tier 2 look at it with export_view/ExportImage; Tier 3 spec-vs-model pass/fail per row), the three safety recipes (checkpoint with Doc.Save not Doc.SaveAs, tagged batch, dry-run), the discovery recipes (list WallType/FloorType/ViewFamilyType/Level/View/FamilySymbol), and the traps already paid for. ⚠ Massing is a dead end for a building — a Form cannot become a floor, wall or room.
-
 ## identity-orientation
 Element identity and door/window data.
 **When:** Identifying what something is, door schedules, orientation queries.
@@ -61,18 +60,6 @@ Materials, unit conversion, numeric helpers.
 **When:** Material queries, unit conversion, geometry comparisons.
 
 Materials/Table, MaterialNames, GetMaterialNames, WhereMaterial/WhereMaterialNot filters, InputUnit (human to feet), OutputUnit (feet to human), FormatUnit, FormatValueOnly, RoundTo, accepted unit strings table, precision-aware comparisons (IsAlmostEqualTo, AlmostZero, IsLessThan, IsGreaterThan, IsPositive, IsNegative).
-
-## family-authoring
-Creating and editing loadable families (.rfa).
-**When:** "Make a family", "build a parametric profile", "edit this door family", any `.rfa` work.
-
-**Durable build scripts — the script is the source of truth, the .rfa is a build output.** Read `Documents\ParacoreFamilies\<FamilyName>\` (build.cs + manifest.json + CHANGELOG.md) BEFORE editing any family, and start a new one from the bundled `build-template.cs`. Regenerate the manifest and diff it after every change — that diff is the proof. Why `Doc.FamilyCreate` / `Doc.FamilyManager` THROW on a project document (they do not return null), the two routes to a family document (NewFamilyDocument / EditFamily), verified family template paths, the doc-access Transact overload, the one-transaction-per-build speed rule, CurveArrArray/CurveArray/ReferenceArray/SketchPlane/Plane plumbing, all 30 FamilyItemFactory New* methods with signatures, the verified NewReferencePlane(bubbleEnd, freeEnd, cutVec, pView) signature, all 40 FamilyManager methods (types, parameters, formulas, instance/type, association, locking), SaveAs/LoadFamily.
-
-## massing-forms
-Conceptual massing with Form objects.
-**When:** "Conceptual mass", "loft", "revolve a profile", "adaptive component", any Form work.
-
-That massing is family authoring with the Conceptual Mass template, the six form creators (NewLoftForm, NewExtrusionForm, NewRevolveForms, NewSweptBlendForm, NewFormByCap, NewFormByThickenSingleSurface) and why they take References rather than Curves, ReferenceArrayArray plumbing, all 47 Form methods (profiles, edges, paths, Move/Rotate/ScaleProfile, constraints, offsets, rehost), reference classification helpers (IsEdgeReference etc.), FormUtils.DissolveForms and why it takes ElementIds, FormArray, adaptive components.
 
 ## Typical Usage Patterns
 
@@ -97,14 +84,14 @@ query-filter + identity-orientation + display-visualize
 **Material query** ("what material are these walls?"):
 query-filter + materials-units + display-visualize
 
-**Family creation** ("make a parametric desk family"):
-family-authoring + write-modify (for parameters) + display-visualize
-
-**Model a building** ("model this building from these dimensions"):
-project-modeling + query-filter + write-modify + display-visualize
-
 **Check the build looks right** ("does this look right?"):
-export_view + display-visualize
+export_view with `annotations: "tags"` + display-visualize
+⚠ The default `annotations: "model"` HIDES every dimension and tag. If the task involves
+dimensions, tags or room names, ask for `"tags"` — otherwise you are checking geometry blind to
+the part the user actually cares about.
 
-**Conceptual mass** ("loft this profile into a mass" — concept studies only, never a building):
-massing-forms + family-authoring (for the template and transaction rules) + display-visualize
+**Anything else** — this server is the generalist: write and run a REPL script with the extension
+methods, or drop to the raw Revit API / LINQ when they are not enough.
+⚠ **Modelling a building** ("model this building", "make it 3 storeys", "build this floor plan with
+its dimensions and room tags") → the **`paracore-model`** MCP. **Family / conceptual mass**
+("make a family", "loft this profile into a mass") → the **`paracore-family`** MCP.

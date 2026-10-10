@@ -118,10 +118,13 @@ PARAMETER NAMES — NEVER GUESS:
 	  A mistyped name returns empty — indistinguishable from "no matches."
 	  NEVER guess parameter names. Discover first on the actual category.
 
-MODELLING A BUILDING — read skill://project-modeling FIRST:
-  A real building is built PER LEVEL: levels → slabs → walls → rooms.
-  Do NOT use massing-forms for a building — a Form cannot become a wall,
-  floor or room. Massing is concept studies only.
+THIS SERVER IS THE GENERALIST — you write and run REPL scripts for ANY Revit
+  task, not one specialism. Prefer the Paracore extension methods, but the raw
+  Revit API, LINQ and .NET are all in scope when the methods are not enough.
+  A real building is built PER LEVEL: levels → slabs → walls → rooms — never
+  via massing (a Form cannot become a wall, floor or room). For deep modelling
+  or family (.rfa) recipes, the paracore-model and paracore-family MCPs are the
+  specialists.
   After every build, re-derive counts and read Doc.GetWarnings().
 
 START EVERY SESSION WITH:
@@ -439,12 +442,8 @@ _SKILL_DESCRIPTIONS: dict[str, str] = {
     "display-visualize":  "Rendering data — Table, BarGraph, PieGraph, LineGraph, ExportImage (view → image file), Println, Select projection",
     "discovery-debug":    "Exploring unknown elements — CombinedParams, Peek, BuiltInParams, GeometrySummary",
     "create-geometry":    "Creating new Revit elements — Wall.Create, Floor.Create, XYZ, CurveLoop, InputUnit",
-    "project-modeling":   "Modelling a REAL building, per level — levels, plan views, grids, slabs, walls, curtain walls, roofs, rooms, doors/windows, stairs, columns, wall-type duplication, family loading, plus per-build verification and safety recipes. The path for \"model a building\" — NOT massing.",
-    "annotations-dimensions": "The DRAWING layer — dimension chains and how to READ a dimension correctly (never ValueString), room/door/window tags, tag orientation (Vertical / AnyModelDirection), text notes, room separation lines, and why NewRooms2 creates duplicate tags. Read this whenever a task mentions dimensions, tags, labels or room names.",
     "identity-orientation": "Element identity and door/window data — FamilyName, Matches, RoomFrom, Handing",
     "materials-units":    "Materials, unit conversion, numeric helpers — InputUnit, OutputUnit, IsAlmostEqualTo",
-    "family-authoring":   "Creating and editing loadable families (.rfa) — NewFamilyDocument, EditFamily, extrusions, revolutions, sweeps, blends, FamilyManager parameters and types",
-    "massing-forms":      "Conceptual massing with Form objects — AddProfile, AddEdge, AddPath, FormUtils, loft forms, profile editing, adaptive components",
 }
 
 _SKILL_CACHE: dict[str, str] = {}

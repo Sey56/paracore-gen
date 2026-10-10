@@ -2,7 +2,7 @@
 
 Usage: python extract_skill.py <exe> <name-substring> <dest> [check-phrase ...]
 Prints what it found and what it wrote, then reports HAS[<phrase>] for each phrase
-given on the command line (or a family-authoring default set if none are given).
+given on the command line.
 Used to prove what a built MCP exe will actually serve, without needing the MCP
 server to be running.
 """
@@ -36,14 +36,11 @@ with open(dest, "wb") as fh:
 print("wrote %s (%d bytes)" % (dest, len(data)))
 
 text = data.decode("utf-8", errors="replace")
-# Check phrases come from argv[4:]; fall back to the family-authoring defaults.
-checks = sys.argv[4:] or [
-    "Three mechanisms work through this API",
-    "Two mechanisms work through this API",
-    "The references are not geometric references",
-    "between REFERENCE PLANES",
-    "Fallback",
-    "Metric Generic Model.rft",
-]
+# Check phrases come from argv[4:]. There is no default set: the phrases are always
+# specific to the file you extracted (the old default was family-authoring content,
+# which left this generalist repo on 2026-10-10).
+checks = sys.argv[4:]
+if not checks:
+    print("(no check phrases given — pass some to assert the extracted text)")
 for c in checks:
     print("HAS[%s] = %s" % (c, c in text))

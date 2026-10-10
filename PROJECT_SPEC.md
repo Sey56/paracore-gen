@@ -26,6 +26,13 @@ The **generalist MCP server** — product name **`Paracore-Gen`**: it lets an AI
 the engine's REPL. A separate product from the takeoff tool, and the **shared Python core** other
 MCPs borrow from.
 
+⚠ **Generalist, not a specialist.** Its job is to *generate and run a REPL script for any Revit
+task*, not to be the deep expert on one. It teaches the nine Paracore **extension-method** skills
+and may drop to the **raw Revit API, LINQ and .NET** when those methods are not enough. The deep
+**modelling** and **family / conceptual-mass** recipes live in the sibling **`paracore-model`** and
+**`paracore-family`** MCPs — this repo carries neither, and its `skills/` is exactly the nine
+method skills.
+
 ⚠⚠ **The name is `paracore-gen` on EVERY surface** (renamed 2026-10-09, from `paracore-mcp`): the
 repo, `build-gen.ps1`, `paracore-gen.iss`, the exe, the installer, `UninstallDisplayName`, the
 `FastMCP(...)` handshake and the client's config key. There is no longer a product-name-vs-exe-name
@@ -64,4 +71,7 @@ fallback so an environment that sets the old one keeps building. New callers set
 ## 4. Not here
 
 - No engine source. This repo is a **consumer** of the engine's public API.
+- ⚠ **No specialist skills.** `skills/` is the nine generalist method skills only — no
+  `project-modeling`, `annotations-dimensions`, `family-authoring` or `massing-forms`. Those belong
+  to **`paracore-model`** / **`paracore-family`**; a copy here is drift.
 - ⚠ Nothing in this file is private. Keep it that way: this repo may be public.

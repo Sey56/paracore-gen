@@ -33,15 +33,30 @@ EXPECT_TOOLS = ["ping", "get_context", "pick_object", "export_view",
                 "_explore_revit_data", "_execute_dynamic_query",
                 "_search_schema", "_read_extension_methods"]
 
+# The nine generalist method skills — every one must be served.
+METHOD_SKILLS = [
+    "query-filter", "aggregate-group", "parameter-access", "write-modify",
+    "display-visualize", "discovery-debug", "create-geometry",
+    "identity-orientation", "materials-units",
+]
+
+# A few of them, read for CONTENT — proves the bundle served the right TEXT, not just the URI.
 SKILLS_TO_READ = {
-    "skill://project-modeling/SKILL.md": ["closure gap", "Doc.GetWarnings()", "Step 0",
-                                          "NewRooms2"],
-    "skill://massing-forms/SKILL.md": ["CONCEPT STUDIES ONLY"],
-    "skill://create-geometry/SKILL.md": ["project-modeling"],
+    "skill://query-filter/SKILL.md": ["GetElements", "WhereParam"],
+    "skill://write-modify/SKILL.md": ["SetVal", "Transact"],
+    "skill://create-geometry/SKILL.md": ["Wall.Create", "Transact"],
     "skill://display-visualize/SKILL.md": ["export_view(", "annotations"],
-    "skill://annotations-dimensions/SKILL.md": ["AnyModelDirection", "ValueString",
-                                                "NewRooms2", "DimensionSegment"],
+    "skill://materials-units/SKILL.md": ["InputUnit", "OutputUnit"],
 }
+
+# ⚠⚠ The four SPECIALIST skills moved to paracore-model / paracore-family on 2026-10-10.
+#   This server is the generalist — it must serve NONE of them. Asserted two-sided on
+#   purpose: the method skills must be PRESENT and these must be ABSENT, so a regression
+#   that re-bundles a specialist skill fails here rather than shipping silently.
+SPECIALIST_SKILLS = [
+    "project-modeling", "annotations-dimensions",
+    "family-authoring", "massing-forms",
+]
 
 # Two-sided, per tool. A one-sided check cannot tell "corrected" from "deleted".
 # ⚠ Updated 2026-10-08: export_view gained the `annotations` mode, so the OLD assertions
@@ -161,6 +176,22 @@ def main():
         check(f"{uri} served", bool(text), f"len={len(text)}")
         for p in phrases:
             check(f"  contains {p!r}", p in text)
+
+    # ── resources/list — the SKILL SET itself, asserted two-sided ──────────────
+    # ⚠ Reading a skill proves its TEXT; it cannot prove WHICH skills exist. Only a
+    #   resources/list tells "the specialist skill is gone" from "nobody asked".
+    print("\n== resources/list — the served skill set ==")
+    send(proc, {"jsonrpc": "2.0", "id": 200, "method": "resources/list"})
+    r = wait_for(msgs, 200)
+    uris = set()
+    if r and "result" in r:
+        for res in r["result"].get("resources", []):
+            uris.add(res.get("uri", ""))
+    check("resources/list returned entries", bool(uris), f"{len(uris)} resources")
+    for name in METHOD_SKILLS:
+        check(f"method skill served: {name}", f"skill://{name}/SKILL.md" in uris)
+    for name in SPECIALIST_SKILLS:
+        check(f"specialist skill GONE: {name}", f"skill://{name}/SKILL.md" not in uris)
 
     # ── Behavioural: does the shipped exe actually ANNOTATE a compile failure? ──
     # `tool_helpers.py` is compiled into the PYZ, so extraction cannot see it and

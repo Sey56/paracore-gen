@@ -122,25 +122,34 @@ for name, code, want_block in [
         print(f"          got blocking={blocked}, want={want_block}")
 
 print()
-print("The shipped template must itself be SUBMITTABLE")
+print("The shipped family template must itself be SUBMITTABLE")
 
-TEMPLATE = REPO / "mcp_core" / "skills" / "family-authoring" / "build-template.cs"
-tpl_code = TEMPLATE.read_text(encoding="utf-8")
-
-hard = check_paracore_compliance(tpl_code)
-if hard is None:
-    print("  [ok  ] build-template.cs                      blocking=False")
+# ⚠ The fixture is FAMILY code. It moved to the paracore-family MCP on 2026-10-10, when
+#   this repo was stripped to the nine generalist method skills. Source it from the
+#   sibling repo; SKIP — never FAIL — when that sibling is not checked out beside us.
+#   (The lint RULES being proven still live HERE, in mcp_core/tool_helpers.py.)
+TEMPLATE = (REPO.parent / "paracore-family" / "mcp_core" / "skills"
+            / "family-authoring" / "build-template.cs")
+if not TEMPLATE.is_file():
+    print(f"  [SKIP] build-template.cs not found at {TEMPLATE}")
+    print("         (check out paracore-family beside paracore-gen to run this check)")
 else:
-    print("  [FAIL] build-template.cs                      blocking=True")
-    print(f"          {hard[:600]}")
-    FAILURES.append("template is blocked by the compliance layer")
+    tpl_code = TEMPLATE.read_text(encoding="utf-8")
 
-tpl_lint = lint_paracore_conventions(tpl_code)
-print(f"  [info] build-template.cs lint notes: {'none' if not tpl_lint else ''}")
-if tpl_lint:
-    for line in str(tpl_lint).splitlines():
-        if line.strip():
-            print(f"          {line.strip()[:140]}")
+    hard = check_paracore_compliance(tpl_code)
+    if hard is None:
+        print("  [ok  ] build-template.cs                      blocking=False")
+    else:
+        print("  [FAIL] build-template.cs                      blocking=True")
+        print(f"          {hard[:600]}")
+        FAILURES.append("template is blocked by the compliance layer")
+
+    tpl_lint = lint_paracore_conventions(tpl_code)
+    print(f"  [info] build-template.cs lint notes: {'none' if not tpl_lint else ''}")
+    if tpl_lint:
+        for line in str(tpl_lint).splitlines():
+            if line.strip():
+                print(f"          {line.strip()[:140]}")
 
 print()
 if FAILURES:
