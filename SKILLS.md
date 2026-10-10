@@ -7,59 +7,76 @@ skills cover the Paracore **extension methods**; the raw Revit API, LINQ and .NE
 when the methods are not enough. Deep **modelling** and **family (.rfa)** recipes live in the
 `paracore-model` and `paracore-family` MCPs.
 
-## query-filter
-Element retrieval, filtering, and sorting.
-**When:** Always. Every query starts here.
+---
 
-GetElements (typed + string), WhereParam (string match, numeric comparison, starts/contains), WhereAnyParam, WhereTypeParam, WhereMatches, WhereMaterial/WhereMaterialNot, StandardDoor, OrderByParam/OrderByParamDesc, Count, Any, First, FirstOrDefault, Take, Skip.
+<!-- GENERATED:SHARED-SKILLS:BEGIN -->
+⚠ **GENERATED — do not edit this region.** These nine are the **shared REPL / dynamic-execution set**: they teach the GENERIC engine's own methods, so they are identical in every engine-driving MCP. Authority: `paracore-gen/mcp_core/shared_skills.py`. The full text of each lives in its own `<name>/SKILL.md`, which is generated from the same place.
+
+## query-filter
+
+Element retrieval, filtering, and sorting — GetElements, WhereParam, WhereMatches, OrderByParam
+
+**When:** Always. Every query starts here.
+**Detail:** `query-filter/SKILL.md`
 
 ## aggregate-group
-Grouping, counting, and summing.
-**When:** "How many per level?", "Total area by type?", any aggregation.
 
-GroupByParam (count per group), GroupByParam with sum (3-arg overload), SumParam (grand total), what CANNOT be chained after GroupByParam, common pattern quick-reference table.
+Grouping, counting, and summing — GroupByParam, SumParam, aggregated totals
+
+**When:** "How many per type?", "Total volume?", any aggregation.
+**Detail:** `aggregate-group/SKILL.md`
 
 ## parameter-access
-Reading element parameters and properties.
-**When:** Reading any data from elements.
 
-GetStr, GetNum, GetVal, GetInt, type-level accessors (GetTypeStr/Num/Val/Int), native properties (dot access: Id, Name, Area, Volume, Location.Point.X/Y/Z), unit strings reference.
+Reading element parameters — GetStr, GetNum, GetVal, GetInt, type-level accessors
+
+**When:** Reading any data from elements.
+**Detail:** `parameter-access/SKILL.md`
 
 ## write-modify
-Modifying elements.
-**When:** Any modification request.
 
-Transaction rules (single auto-transact, collection bulk, manual foreach), SetNum with unit conversion, SetVal (smart setter — string/double/int/ElementId), SetParam (collection bulk, dynamic factory, indexed factory), Delete/Hide/Unhide/Isolate, Transact syntax, chainable bulk writes.
+Modifying elements — SetVal, SetNum, SetParam, Delete, Hide, Isolate, Transact
+
+**When:** Any modification request.
+**Detail:** `write-modify/SKILL.md`
 
 ## display-visualize
-Tables, charts, image export, and output.
-**When:** Rendering results — or looking at the model.
 
-Table() safe/forbidden patterns, column naming rules (underscores to spaces, no unit suffixes), BarGraph/PieGraph/LineGraph (after GroupByParam, no Select needed), Println (status only, never for data), LINQ Select projection for Table, export_view (snapshot the model — see its `annotations` modes).
+Rendering data — Table, BarGraph, PieGraph, LineGraph, ExportImage (view → image file), Println, Select projection
+
+**When:** Rendering results — or looking at the model.
+**Detail:** `display-visualize/SKILL.md`
 
 ## discovery-debug
-Exploring unknown elements.
-**When:** "What parameters does this element have?", first time with a category.
 
-CombinedParams (primary — all params + values, zero args), BuiltInParams, InstanceParams, TypeParams, ParamsDict, NativeProperties, ReflectionProperties/Methods, Peek, GeometrySummary, discovery workflow (CombinedParams first, search_schema for fast cached lookup).
+Exploring unknown elements — CombinedParams, Peek, BuiltInParams, GeometrySummary
+
+**When:** "What parameters does this element have?", first time with a category.
+**Detail:** `discovery-debug/SKILL.md`
 
 ## create-geometry
-Creating new Revit elements.
-**When:** "Place a wall/floor/door/column."
 
-XYZ, Line.CreateBound, Arc.Create, CurveLoop, Wall.Create, Floor.Create, FamilyInstance placement, column placement, InputUnit (human to feet), pre-imported namespaces, Transact REQUIRED for all creation.
+Creating new Revit elements — Wall.Create, Floor.Create, XYZ, CurveLoop, InputUnit
+
+**When:** Any creation — a wall/floor/door/column.
+**Detail:** `create-geometry/SKILL.md`
 
 ## identity-orientation
-Element identity and door/window data.
-**When:** Identifying what something is, door schedules, orientation queries.
 
-FamilyName, Matches (fuzzy), GetElementType, id.ToElement, door methods (RoomFrom/RoomTo, Handing LH/RH, HingeSide Left/Right, IsHandFlipped, IsFacingFlipped, FindSwingArc), StandardDoor filter, IsStandardDoor, typed-vs-string retrieval table.
+Element identity and door/window data — FamilyName, Matches, RoomFrom, Handing
+
+**When:** Identifying what something is, door schedules, orientation queries.
+**Detail:** `identity-orientation/SKILL.md`
 
 ## materials-units
-Materials, unit conversion, numeric helpers.
-**When:** Material queries, unit conversion, geometry comparisons.
 
-Materials/Table, MaterialNames, GetMaterialNames, WhereMaterial/WhereMaterialNot filters, InputUnit (human to feet), OutputUnit (feet to human), FormatUnit, FormatValueOnly, RoundTo, accepted unit strings table, precision-aware comparisons (IsAlmostEqualTo, AlmostZero, IsLessThan, IsGreaterThan, IsPositive, IsNegative).
+Materials, unit conversion, numeric helpers — InputUnit, OutputUnit, IsAlmostEqualTo
+
+**When:** Material queries, unit conversion, geometry comparisons.
+**Detail:** `materials-units/SKILL.md`
+<!-- GENERATED:SHARED-SKILLS:END -->
+
+---
 
 ## Typical Usage Patterns
 
