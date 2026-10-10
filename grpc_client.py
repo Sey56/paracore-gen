@@ -916,7 +916,25 @@ def execute_repl(code: str, session_id: str, license_tier: str = "free",
                 execution_mode=execution_mode,
                 source=source
             )
-            response = stub.ExecuteRepl(request, timeout=timeout)
+            # ⚠⚠ THE IN-FLIGHT GATE — tell the resident dialog watcher that a Revit
+            #   round-trip is WAITING, so it may answer a modal failure dialog that
+            #   blocks THIS call. Outside this window the watcher must not touch any
+            #   dialog: the operator may have opened one by hand.
+            #   ⚠ Resolved via sys.modules, never re-imported by path — a second copy
+            #   of the module would own a DIFFERENT _call_depth and the gate would
+            #   silently never open.
+            import sys as _sys
+            _gate = None
+            for _name in ("mcp_core.dialog_watcher", "forge_core.dialog_watcher"):
+                _mod = _sys.modules.get(_name)
+                if _mod is not None and hasattr(_mod, "revit_call"):
+                    _gate = _mod.revit_call
+                    break
+            if _gate is None:
+                response = stub.ExecuteRepl(request, timeout=timeout)
+            else:
+                with _gate():
+                    response = stub.ExecuteRepl(request, timeout=timeout)
             structured_output_data = [{"type": item.type, "data": item.data, "title": item.title} for item in getattr(response, 'structured_output', [])]
             pipeline_diags = list(getattr(response, 'pipeline_diagnostics', []))
             return {

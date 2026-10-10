@@ -90,15 +90,28 @@ Always put `Id` as the first column in `.Select()` projections.
 This is how you **look at what you built** — numbers alone cannot tell you whether a proportion
 is right.
 
-**`export_view(view_name, pixel_size)` — the tool. Prefer this.** It renders a named view (or the
-active view when `view_name` is omitted) and returns the **image itself**, so you can see it in
-one step. The file is written to a temp directory and returned directly.
+**`export_view(view_name, pixel_size, annotations)` — the tool. Prefer this.** It renders a named
+view (or the active view when `view_name` is omitted) and returns the **image itself**, so you can
+see it in one step. The file is written to a temp directory and returned directly.
 
 ```text
-export_view("3D View - {3D}")        # a named view
-export_view()                        # the active view
-export_view("North Elevation", 2000) # named view, 2000 px
+export_view("3D View - {3D}")                        # a named view, annotation hidden
+export_view()                                        # the active view
+export_view("North Elevation", 2000)                 # named view, 2000 px
+export_view("00 - Ground Floor", 1600, "tags")       # dimensions + tags kept
 ```
+
+⚠ **`annotations` decides whether you can read the drawing.** Default is `"model"`:
+
+| mode | what it does | when |
+|---|---|---|
+| `"model"` | hides **all** annotation — the model fills the frame | 3D views, checking geometry |
+| `"tags"` | hides datum/marker categories, **keeps dimensions, text notes and room/door/window tags** | checking a dimensioned drawing, reading a room tag |
+| `"all"` | hides nothing — everything is visible, but markers outside the model are drawn too and the model shrinks to a fraction of the frame | rarely; when you need one specific marker |
+
+⚠⚠ **A default export of a floor plan contains NO dimensions and NO room tags.** That is by
+design, and it is the single easiest way to conclude "my dimensions are missing" when they are
+present and merely hidden. If the task mentions dimensions, tags or room names, pass `"tags"`.
 
 ⚠ **The loop is build → export → look → correct.** Export after *every* build stage, not only at
 the end — a wall in the wrong place is far cheaper to fix before the next 30 elements exist.
@@ -132,7 +145,21 @@ wherever they sit — even far outside the model — and because the export fits
 page, they **shrink the subject**. This is *not* limited to 3D views: a **plan** view with elevation
 markers beside it renders the building into a fraction of the frame. `ExportImage` therefore hides
 the whole `CategoryType.Annotation` set on the view for the duration of the export and restores it —
-the caller sees no change and no undo entry. Pass `hideAnnotation: false` as the 4th argument only
-when you specifically want the level/grid tags in the image.
+the caller sees no change and no undo entry.
+
+**Three ways to get the tags into the picture, in increasing order of fidelity:**
+
+1. **`export_view(..., annotations: "tags")`** — the tool, and the one to reach for. It hides only
+   the datum/marker categories and keeps dimensions, text notes and room/door/window tags. Measured
+   2026-10-08: on the house model this is the difference between a plan with no readable information
+   and a legible dimensioned drawing.
+2. `export_view(..., annotations: "all")` — everything visible, model shrunk by the markers.
+3. In-script `ExportImage(path, viewName, pixelSize, hideAnnotation: false)` — the raw engine
+   primitive. Use it only when you are already writing C# and want the **path** back. It has no
+   middle setting: `hideAnnotation` is all-or-nothing.
+
+⚠ **"tags" is implemented on the MCP side, using raw Revit API**, so it needs no add-in change and
+works on the free and Pro add-in alike. It rolls its own transaction back, so the view is left
+exactly as the user had it.
 
 **Use it whenever the user asks "does this look right?"** — build, export, look, correct.

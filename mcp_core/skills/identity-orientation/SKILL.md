@@ -33,6 +33,32 @@ door.IsFacingFlipped                       // true/false
 door.FindSwingArc()                        // largest Arc in geometry (swing path)
 ```
 
+⚠⚠ **These are READ-ONLY. You cannot SET handing.** Measured by reflection 2026-10-08:
+
+```
+FamilyInstance.HandFlipped    CanWrite = False
+FamilyInstance.FacingFlipped  CanWrite = False
+FamilyInstance.flipHand()     exists
+FamilyInstance.flipFacing()   exists
+```
+
+`door.HandFlipped = true` is a **compile error**. Change handing with the **method**, inside a
+`Transact`, then re-read the property to confirm:
+
+```csharp
+Transact("flip door hand", () => door.flipHand());
+Println($"hand now flipped: {door.HandFlipped}");
+```
+
+⚠ **Handing is found by trying, not by deriving.** The `flip` argument of
+`NewFamilyInstance` flips the *wall's* orientation, not the door's swing — so a door's hinge
+side after placement is not predictable from the call you made. Place it, read
+`HandFlipped` / `FacingFlipped`, flip if wrong, re-read. Two reads and at most one flip is the
+cheapest reliable loop.
+
+⚠ **Changing a placed door's TYPE can re-resolve its orientation.** After a symbol swap, re-read
+both flags rather than assuming the handing you set survived.
+
 ## Standard Door Filter
 
 ```csharp

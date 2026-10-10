@@ -1,8 +1,16 @@
 # 🧩 Paracore Extension Methods Reference
 
-A comprehensive guide to every extension method available on Revit elements and collections in Paracore scripts. All methods are globally available in the REPL and in all scripts.
+A comprehensive guide to every extension method the **engine** provides on Revit elements and collections in Paracore scripts. All methods are globally available in the REPL and in all scripts.
 
-Source files: `ElementExtensions.cs`, `ElementParamExtensions.cs`, `ElementWriteExtensions.cs`, `ElementDoorExtensions.cs`, `ElementDiscoveryExtensions.cs`, `ElementGeometryExtensions.cs`, `ElementUIExtensions.cs`, `CollectionAggregateExtensions.cs`, `CollectionWriteExtensions.cs`, `CollectionUIExtensions.cs`, `PipelineEnumerable.cs`, `UnitExtensions.cs`,<!-- #PRO-ONLY-BEGIN Pro-only sources; stripped from the free copy --> `CoordinationExtensions.cs`, `CurtainGridRepairExtensions.cs`<!-- #PRO-ONLY-END -->, `NotebookExtensions.cs`, `ScriptApi.cs`<!-- #PRO-ONLY-BEGIN -->, `Eco.cs`<!-- #PRO-ONLY-END -->.
+⚠⚠ **This document is ENGINE-ONLY, and there is exactly ONE of it (2026-10-09).** There is no free/Pro split any more — the engine and the add-in are always free and generic, so there is no `#PRO-ONLY` region, no stripped variant, and no second copy with different content. A method provided by a tool's **pack** (the Pro/free unit) is documented **with that tool**, never here: the takeoff pack's `CoordinationExtensions.cs`, `CurtainGridRepairExtensions.cs` and `Eco.cs` live in `paracore-takeoff/pack/Engine/Globals/` and are documented in **`paracore-takeoff/Docs/TAKEOFF_REFERENCE.md`**.
+
+Source files: `ElementExtensions.cs`, `ElementParamExtensions.cs`, `ElementWriteExtensions.cs`, `ElementDoorExtensions.cs`, `ElementDiscoveryExtensions.cs`, `ElementGeometryExtensions.cs`, `ElementUIExtensions.cs`, `CollectionAggregateExtensions.cs`, `CollectionWriteExtensions.cs`, `CollectionUIExtensions.cs`, `PipelineEnumerable.cs`, `UnitExtensions.cs`, `NotebookExtensions.cs`, `VisualizationExtensions.cs`, `ScriptApi.cs`.
+
+⚠ **This list is EXHAUSTIVE, and it is the ONLY place the engine API is documented.** Every
+`public static … (this …)` declared under `CoreScript.Engine/Globals/` is meant to appear here. The
+document is maintained by hand, so it drifts — when adding an extension method to the engine, add it
+here in the same change. (Host plumbing that a script cannot call, e.g. the DI registration in
+`ServiceCollectionExtensions.cs`, is deliberately out of scope.)
 
 > [!NOTE]
 > All extension methods work identically in the **REPL** and in **Gallery scripts**. They are standard C# extension methods available everywhere the engine runs.
@@ -31,6 +39,14 @@ GetElements<FamilySymbol>("Doors")    → typed type symbols (door family types)
 GetElements("Doors")                  → untyped Element list
 ```
 
+⚠ **A category name is not a class name.** The string in the parentheses is the **PLURAL category
+name** — `"Walls"`, `"Doors"`, `"Structural Columns"`. The space is optional: `"StructuralColumns"`
+resolves to the same category (matching is exact-name, no-space, or a `BuiltInCategory` substring).
+For a **loadable** family the CLASS goes in the angle brackets and the CATEGORY in the parentheses —
+Structural Columns are loadable, so it is `GetElements<FamilyInstance>("Structural Columns")`
+(**there is no `StructuralColumn` type**). A **system** family needs no category at all:
+`GetElements<Wall>()`.
+
 Single-element: `GetElement("name-or-id")` | Discovery: `GetMagicNames()`, `GetCategories()`
 
 ---
@@ -52,12 +68,8 @@ Single-element: `GetElement("name-or-id")` | Discovery: `GetMagicNames()`, `GetC
 13. [Collection: Revit UI Actions](#13-collection-revit-ui-actions)
 14. [Collection: Notebook Export](#14-collection-notebook-export)
 15. [Numeric & Unit Helpers](#15-numeric--unit-helpers)
-<!-- #PRO-ONLY-BEGIN  Pro-only engines — Clash Detection (CoordinationExtensions.cs) and Curtain Grid Repair (CurtainGridRepairExtensions.cs). gen-engine-docs.py strips this region from the free-repo copy; do not remove the markers. -->
-16. [Coordination & Clash Detection](#16-coordination--clash-detection)
-17. [Curtain Grid Repair](#17-curtain-grid-repair)
-<!-- #PRO-ONLY-END -->
-18. [Global ScriptApi Methods](#18-global-scriptapi-methods)
-19. [Complete Fluent Chain Examples](#19-complete-fluent-chain-examples)
+16. [Global ScriptApi Methods](#16-global-scriptapi-methods)
+17. [Complete Fluent Chain Examples](#17-complete-fluent-chain-examples)
 
 ---
 
@@ -125,6 +137,24 @@ column.GetTypeVal("Cost")             // "25.00 Birr"
 
 `GetElementType()` returns the `ElementType` for any instance.
 
+### Type-level writers — write through to the element's TYPE
+
+⚠ Every reader above has a writer, and the writers are **type-level**: they set the parameter on
+`e.GetElementType()`, so **every instance of that type changes at once**. That is the point of them —
+you cannot set a type parameter per instance. If you want one element only, use the instance setter
+(`SetVal` / `SetNum`) and make sure the parameter is an instance parameter.
+
+```csharp
+column.SetTypeVal("Cost", "30.00 Birr")        // SetVal on the ElementType
+column.SetTypeVal("b", 250, "mm")              // with unit conversion
+column.SetTypeNum("h", 300, "mm")              // numeric + unit, SetNum on the ElementType
+```
+
+All three are `void` — they return nothing, so they **end** a fluent chain. They no-op silently when
+the element has no `ElementType` (e.g. a system-family instance such as a `Wall`), because the
+implementation is `e.GetElementType()?.SetVal(...)`. To write a type parameter across many elements
+without touching each one, use `SetTypeParam` (§12).
+
 ---
 
 ## 3. Element: Smart Write Methods
@@ -179,6 +209,17 @@ wall.ParamsDict()                     // Dictionary<string,string> of all params
 wall.NativeProperties()               // Category, Level, Workset, etc.
 ```
 
+### Element snoop — Peek
+
+```csharp
+wall.Peek()                           // dumps EVERY parameter as a table; returns the element
+GetElements("Walls").Peek()           // snoop each element in turn; returns the collection
+```
+
+`Peek` is the discovery shortcut for *"what does this thing actually have?"* — one row per parameter
+with `Parameter | Storage | StringValue | NumericValue | UIValue`, the last being the exact string
+Revit's Properties palette shows. Both overloads are **read-only** and chainable.
+
 ### Identity helpers
 
 ```csharp
@@ -186,6 +227,16 @@ wall.Matches("HCB")                   // fuzzy match against Type Name + Family 
 wall.FamilyName                       // "Basic Wall"
 wall.GetStr("Family and Type")        // full identity string
 ```
+
+### ElementId → Element
+
+```csharp
+id.ToElement(doc)                     // ElementId / long / int → Element (null if it is gone)
+```
+
+Three overloads — `ElementId`, `long`, `int` — each taking the `Document` as the second argument. It
+exists so an id read out of a parameter (a `LevelId`, a `GroupId`, an `OwnerViewId`) can be resolved
+without an `ElementId` cast.
 
 ---
 
@@ -223,11 +274,6 @@ door.IsStandardDoor()                 // true if NOT hosted on a Curtain Wall
 wall.Materials().Table()              // all Material objects on the element
 wall.MaterialNames()                  // IEnumerable<string>: "Concrete - C-25", "Plaster - Cement"
 wall.GetMaterialNames()              // comma-separated string
-
-// Eco (static, not extension methods)
-Eco.GetCarbon(element)                // kgCO2e
-Eco.GetUValue(element)                // W/m²K
-Eco.GetWeather()                      // live Open-Meteo API for project location
 ```
 
 ---
@@ -303,6 +349,20 @@ GetElements("Structural Framing").WhereMaterial("Concrete").Table()
 GetElements("Structural Framing").WhereMaterialNot("Steel")
 ```
 
+### WhereCategory — filter by category, several at once
+
+```csharp
+GetElements<Element>().WhereCategory("Structural Framing", "Structural Columns", "Floors")
+GetElements<Element>().WhereCategory("Doors", "Windows")
+```
+
+⚠ **Chained filters AND together, so you cannot OR two categories with `WhereParam`.** `WhereCategory`
+is the OR: it keeps an element whose category matches **ANY** of the names given (it is
+`params string[]`, so pass as many as you like). Category matching is exactly as lenient as the
+`GetElements("Category")` magic string — exact name case-insensitively, the no-space form
+(`"StructuralColumns"` ≡ `"Structural Columns"`), or a `BuiltInCategory` substring
+(`"OST_StructuralFraming"`).
+
 ### Standard C# Where (lambda)
 
 ```csharp
@@ -375,6 +435,20 @@ GetElements("Walls")
     .SetParam("Mark", (w, idx) => $"W{idx+1:D3}") // indexed factory
 ```
 
+### SetTypeParam — write a TYPE parameter across the collection
+
+```csharp
+GetElements("Structural Columns").SetTypeParam("Cost", "30.00 Birr")
+GetElements("Structural Columns").SetTypeParam("b", 250, "mm")   // with unit conversion
+```
+
+⚠ **This does not touch each element — it touches each distinct `ElementType` once.** The collection is
+collapsed to unique element types first (`GroupBy(t => t.Id.Value)`), then each type is written, all in
+a single transaction. So a selection of 40 columns sharing 3 types produces **3 writes**, not 40, and
+the change applies to **every instance of those types in the model** — including ones you did not
+select. That is inherent to type parameters, not a bug; use `SetParam` (instance-level) when you mean
+only what you selected.
+
 ---
 
 ## 13. Collection: Revit UI Actions
@@ -438,112 +512,24 @@ Accepted unit strings: `mm`, `cm`, `m`, `km`, `in`, `ft`, `m2`, `sqm`, `ft2`, `s
 x.IsAlmostEqualTo(y)                 // tolerance 1e-9
 x.AlmostZero()                       // |x| < 1e-9
 x.IsLessThan(limit) / IsGreaterThan(limit)
+x.IsLessThanOrEqual(limit) / IsGreaterThanOrEqual(limit)
 x.IsPositive() / IsNegative()
 ```
 
----
-
-<!-- #PRO-ONLY-BEGIN  Pro-only engines — Clash Detection (CoordinationExtensions.cs) and Curtain Grid Repair (CurtainGridRepairExtensions.cs). gen-engine-docs.py strips this region from the free-repo copy; do not remove the markers. -->
-## 16. Coordination & Clash Detection
-
-```csharp
-// Source collection vs target category
-GetElements("Pipes").AuditClashes("Structural Framing").Table()
-
-// With tolerance
-GetElements<Pipe>("Pipes").AuditClashes("Walls", "2mm").Table()
-
-// Two explicit collections
-sourceElements.AuditClashes(targetElements, 0.01).Table()
-
-// Cleanup
-Doc.ClearClashHelpers()
-```
-
-`.Table()` on clash results renders an interactive table AND creates visual helper geometry in the model.
+⚠ **These are not the raw operators — the tolerance band is excluded.** `IsLessThan` is
+`x < limit` **only when the two are not almost equal**; a value inside 1e-9 of the limit is neither
+less nor greater, so both return false. `IsLessThanOrEqual` / `IsGreaterThanOrEqual` add the band back
+(`x < limit || x.IsAlmostEqualTo(limit)`), which makes them the safe choice for a boundary test —
+`IsLessThanOrEqual(2000)` accepts a 2000.0000000001 from unit-conversion noise, `IsLessThan` does not.
+`IsPositive` / `IsNegative` likewise mean *outside the band* (`x > tolerance` / `x < -tolerance`), so a
+0.0000000001 is neither positive nor negative. All take an optional `tolerance` third argument.
 
 ---
 
-## 17. Curtain Grid Repair
-
-A curtain wall's grid spacing is a **type** parameter, and Revit offers no minimum. Set "Vertical Grid = Fixed Distance 900 mm" so a 900 mm door fits between two mullions, and Revit lays the lines out at 900, 1800, 2700 … and leaves whatever is **left over** as the last bay. On a 3100 mm wall that last bay is 400 mm — a mullion 400 mm from the jamb — and if the remainder rounds to zero you get two **coincident** grid lines, two mullions in the same place, and a zero-width cell.
-
-There is no API to delete a grid line (`CurtainGrid` exposes `AddGridLine` and nothing else, and `Mullion` exposes no delete), so the only lever is the **segment**: removing a grid line's segments deletes its mullions.
-
-```csharp
-// 1. Look first — read-only. Reports every bay narrower than the minimum (default 500 mm).
-selectedWall.AuditNarrowBays().Table()
-selectedWall.AuditNarrowBays(600).Table()
-GetElements<Wall>().AuditNarrowBays().Table()
-
-// 2. Merge them. Removes the offending grid line's segments, so the bay merges into
-//    its neighbour and the mullion goes with it.
-selectedWall.MergeNarrowBays().Table()
-selectedWall.MergeNarrowBays(500).Table()
-GetElements<Wall>().MergeNarrowBays(500).Table()          // one transaction
-
-// One axis only (Vertical = the mullion bays along the wall, Horizontal = the transoms)
-selectedWall.MergeNarrowBays(500, CurtainBayAxis.Vertical).Table()
-
-// 3. Phantom members (defect D38) — ids a grid still RETURNS but no longer CONTAINS.
-selectedWall.PurgeGhostMembers().Table()
-GetElements<Wall>().PurgeGhostMembers().Table()
-```
-
-**The second cleanup — segments whose mullion was deleted.**
-
-Select a mullion, unpin it, delete it: the mullion goes, but the grid line's **segment stays existing**. The division outlives the member — so the wall reports two panels where one continuous pane was intended, and the grid line is still drawn in every view. `RemoveMullionlessSegments` removes those segments, which merges the panels and takes the line out of the view.
-
-```csharp
-// 4. Remove every segment that has no mullion on it.
-selectedWall.RemoveMullionlessSegments().Table()
-GetElements<Wall>().RemoveMullionlessSegments().Table()          // one transaction
-selectedWall.RemoveMullionlessSegments(CurtainBayAxis.Vertical).Table()
-```
-
-Measured on the villa, 2026-10-05 — 28 curtain walls, **33 mullion-less segments on 10 walls**:
-
-| Wall | Existing segments | Mullion-less | Note |
-|---|---|---|---|
-| 544635 | 10 | **6** | all three vertical lines stripped by hand |
-| 478741 | 10 | 6 | also carries the 4 phantom mullions |
-| 512772 | 15 | 4 | |
-| 804823 / 807435 / 807526 / 807593 | 10 | 1 each | a horizontal segment |
-| the other 18 walls | — | **0** | ⚠ the test does not manufacture orphans |
-
-**Emptying a line is supported.** Removing a line's *last* segment makes Revit post *"Curtain grid lines must have at least one segment"*. That is a **warning with no consequence** — the owner's own hand edit leaves wall 804645's line 804659 at `existingSegs 0 / skippedSegs 2`, and that wall is healthy (8 panel ids = 6 built + 2 ghost, which the schedule already reports as 6). But the warning raises a **modal dialog**, and a modal dialog blocks the API — which is why this cleanup could not be automated before. Every transaction these tools open now installs a failures preprocessor that deletes warnings. Measured in the REPL: `preprocessor calls=1, warningsDeleted=3`, commit completed, no dialog. ⚠ Only **warnings** are deleted — an error still fails the transaction.
-
-**The merge rule.** Boundaries are the two ends of the axis plus every grid line that still has a live segment. A bay shorter than `minBayMm` is fixed by removing its **starting** boundary, so it merges *backwards* into its neighbour — for the trailing bay that is exactly "remove the last grid before reaching the edge". A leading bay has no removable start (the wall edge), so its ending boundary goes instead. Removals are re-scanned from the far end after each one, so a wall needing two merges gets both.
-
-**What is measured, not assumed.** On the villa, 2026-10-05:
-
-| Wall | Type / layout | Bays | Result |
-|---|---|---|---|
-| 512772 | Type4, Fixed Distance 900, 5000 mm | 900/900/900/900/**500** | left alone — exactly the minimum |
-| 804556 | Type2, Fixed Distance 900, 3100 mm | 900/900/1300 | already merged; no-op |
-| 544635 | Type4, Fixed Distance 900, 2900 mm | 900/900/900/**200** | flagged **Trailing**, merged to 1100 |
-| 478741 | Type4, Fixed Distance 900, 2550 mm | two lines at **900** | flagged **Coincident** (0 mm), merged to 900 |
-
-`MergeNarrowBays` returns one row per bay with the axis, kind, the offending width, the merged width, the removed line id, and the type's own layout and spacing. `.Table()` renders it and states the headline. An empty result prints "no narrow bays".
-
-**Notes.**
-
-- ⚠⚠ **DO NOT run this on a wall whose glazing is BUTT-JOINTED BY DESIGN.** In real construction there are glass walls with no mullions at all, and their panels must still be reported **separately**. This method cannot tell that intent from a mullion that was deleted by mistake — it removes **every** mullion-less segment on the wall it is given. Two consequences:
-  - Call it on **`selectedWall`**, not `GetElements<Wall>()`, unless you genuinely mean it across the model.
-  - It is **all-or-nothing per wall** — there is no "remove these three, keep those two". Preserve by hand the ones you want to keep, or leave that wall alone.
-- ⚠ The layout *mode* is `SPACING_LAYOUT_VERT` / `SPACING_LAYOUT_HORIZ` and the *spacing* is `SPACING_LENGTH_VERT` / `SPACING_LENGTH_HORIZ`. `CURTAINGRID_BELT_U/V` are **not** the spacing — they do not exist on these types.
-- ⚠ `GetVGridLineIds()` are the **vertical** grid lines (the mullion bays); `GetUGridLineIds()` are the horizontal ones (the transoms). The U/V naming is the opposite of what it looks like.
-- The grid line **element** survives the merge with zero existing segments — that is Revit's behaviour, and it matches the state a hand edit leaves behind. It is skipped on a re-run, so the tool is idempotent.
-- `PurgeGhostMembers` deletes singly and tolerates refusal: Revit refuses every phantom **panel** and some phantom mullions, and a multi-id `Delete` is atomic, so one refusal would otherwise block the lot.
-- ⚠ `RemoveMullionlessSegments`'s test is **geometric**: a *live* mullion, parallel to the segment, whose midpoint lies on it to within 6 mm. 18 of the 28 walls report zero orphans at that band, which is what makes it trustworthy rather than trigger-happy. Ghost mullions are excluded, so an already-orphaned member can never excuse a segment.
-- ⚠ What the cleanup **leaves behind** is not a defect and is not fixed here: a merge strands one ghost panel per removed division (Revit refuses to delete phantom panels), and the perpendicular mullion pieces do not become one element. Both are already absorbed downstream — by the built-panel test and by `MullionMemberCount`.
-- All writers open their own transaction unless one is already active, so they are safe inside a script's own `Transact`.
-
-<!-- #PRO-ONLY-END -->
 
 ---
 
-## 18. Global ScriptApi Methods
+## 16. Global ScriptApi Methods
 
 These are called directly without a prefix — available in every script.
 
@@ -637,7 +623,7 @@ view with elevation markers beside it renders the building into a fraction of th
 
 ---
 
-## 19. Complete Fluent Chain Examples
+## 17. Complete Fluent Chain Examples
 
 ```csharp
 // Doors on Level 1, sorted by width
@@ -660,27 +646,9 @@ GetElements("Walls")
     .Select()
 
 // Heavy columns
-GetElements<StructuralColumn>("Structural Columns")
+GetElements<FamilyInstance>("Structural Columns")
     .WhereParam("Volume", ">", 1.0, "m3")
     .OrderByParamDesc("Volume")
     .Table()
 
 ```
-<!-- #PRO-ONLY-BEGIN Pro-engine fluent examples — Clash Detection (CoordinationExtensions.cs) and Curtain Grid Repair (CurtainGridRepairExtensions.cs); gen-engine-docs.py strips this from the free-repo copy -->
-```
-GetElements("Pipes")
-    .AuditClashes("Structural Framing", "5mm")
-    .Table()
-```
-
-```
-// Curtain grids: look first, then merge anything under 500 mm, then clear the phantoms
-GetElements<Wall>().AuditNarrowBays().Table()
-
-GetElements<Wall>().MergeNarrowBays(500).Table()
-
-GetElements<Wall>().RemoveMullionlessSegments().Table()
-
-GetElements<Wall>().PurgeGhostMembers().Table()
-```
-<!-- #PRO-ONLY-END -->

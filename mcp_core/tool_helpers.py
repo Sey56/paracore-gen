@@ -169,17 +169,42 @@ _LINT_RULES: list[tuple[str, str]] = [
 # Soft warning only — cross-checks against schema cache before flagging.
 # Real Revit params like "StopDepth", "IfcGUID", "UnderCut" are PascalCase
 # (no spaces, each word capitalized) and must NOT be blocked.
+#
+# ⚠⚠ ONLY a string passed as the PARAMETER-NAME argument of a Paracore call is a
+#    candidate. The previous rule scanned EVERY quoted PascalCase string in the
+#    snippet, so it fired on code that has nothing to do with parameters.
+#    Measured 2026-10-08 on the installed build:
+#      typeof(IndependentTag).GetProperty("TagOrientation")
+#      m.Name.StartsWith("NewRoom")
+#    produced `Note: "TagOrientation", "TagOrientation", "NewRoom" has no spaces —
+#    Revit parameters use spaces ...` — three names, none of them a parameter.
+#    A warning that fires on correct code trains the agent to ignore warnings
+#    (the same failure class as D-MCP-2), and it costs tokens on every
+#    reflection-heavy snippet. Narrowed to the call sites that actually take a
+#    parameter name; a mistyped `.GetStr("FireRating")` is still caught.
+_PARAM_NAME_CALL_RE = re.compile(
+    r'\b(?:GetStr|GetNum|GetVal|GetInt'
+    r'|GetTypeStr|GetTypeNum|GetTypeVal|GetTypeInt'
+    r'|WhereParam|WhereAnyParam|WhereTypeParam|WhereMaterial|WhereMaterialNot'
+    r'|GroupByParam|OrderByParam|OrderByParamDesc|SumParam'
+    r'|SetVal|SetNum|SetParam'
+    r'|SetTypeStr|SetTypeNum|SetTypeVal|SetTypeInt'
+    r')\s*\(\s*"([^"]*)"'
+)
 
-_SUSPICIOUS_NAME_RE = re.compile(r'"([A-Z][^" ]*[a-z][A-Z][^" ]*)"')
+# PascalCase with no space: at least one lower→upper transition. Applied only to
+# the captured argument above.
+_SUSPICIOUS_NAME_RE = re.compile(r'^[A-Z][^" ]*[a-z][A-Z][^" ]*$')
 
 
 def check_suspicious_param_names(code: str) -> str:
-    """Find quoted strings that are PascalCase (no spaces) and NOT in the schema cache.
+    """Find parameter-name arguments that are PascalCase (no spaces) and NOT in the schema cache.
 
     Returns a warning string if suspicious names are found, or empty string.
     Does NOT block execution — real params like StopDepth/IfcGUID exist.
     """
-    suspicious = _SUSPICIOUS_NAME_RE.findall(code)
+    suspicious = [n for n in _PARAM_NAME_CALL_RE.findall(code)
+                  if _SUSPICIOUS_NAME_RE.match(n)]
     if not suspicious:
         return ""
 
@@ -194,7 +219,8 @@ def check_suspicious_param_names(code: str) -> str:
     except Exception:
         known = set()
 
-    unknown = [n for n in suspicious if n not in known]
+    # Deduplicate, order preserved — one name repeated in three calls is one note.
+    unknown = list(dict.fromkeys(n for n in suspicious if n not in known))
 
     if not unknown:
         return ""
@@ -514,13 +540,18 @@ def summarize_execution_result(result: Dict[str, Any]) -> str:
     return summarize(output_raw)
 
 
-def format_execution_error(result: Dict[str, Any]) -> str:
+def format_execution_error(result: Dict[str, Any], source_code: str = "") -> str:
     """
     Format a failed execution result as a user-facing error string with
     Paracore-specific self-correction suggestions.
 
     Handles both execute_repl (error_message = str) and execute_script
     (error_message = list of compilation errors).
+
+    When `source_code` is supplied, each compiler diagnostic is annotated with the
+    OFFENDING SOURCE LINE (see `_annotate_compile_errors`) — a raw Roslyn message
+    names a line and column but never the expression, which is the single biggest
+    time sink when a snippet fails to compile.
     """
     err_msg = result.get("error_message", "Unknown error")
     err_detail = result.get("error_details", "")
@@ -536,13 +567,119 @@ def format_execution_error(result: Dict[str, Any]) -> str:
         full_error += "\n" + str(err_detail)
 
     suggestion = _suggest_paracore_fix(full_error)
+    annotated = _annotate_compile_errors(full_error, source_code)
 
     msg = f"Execution Failed: {err_msg}"
     if err_detail:
         msg += f"\nDetails: {err_detail}"
+    if annotated:
+        msg += f"\n\n{annotated}"
     if suggestion:
         msg += f"\n\n{suggestion}"
     return msg
+
+
+# ── Compile-error annotation — say WHICH LINE, in the USER'S coordinates ─────
+#
+# ⚠⚠ THE ENGINE HAS TWO DIAGNOSTIC COORDINATE SYSTEMS, and this annotator must
+#    cope with both because an engine install and an MCP install are separate
+#    acts (the engine is a file copy into Revit's addins folder; the MCP is a
+#    PyInstaller exe). Skew is normal, not exceptional.
+#
+#    LEGACY (engine before the 2026-10-08 fix)
+#      `(7,44): error CS0411: ...`
+#      ReplSessionManager prepends two lines (`using static ...ScriptApi;` and
+#      `using Parameter = ...`) and emits NO `#line` directive, so every line is
+#      the USER'S line + 2. Measured on the installed build: five independent
+#      failures, all exactly +2.
+#
+#    FIXED (engine with the fix)
+#      `script(5,1): error CS0411: ...`
+#      The engine now emits `#line 1 "script"` before the user's code AND maps
+#      the column back past the injected `TrackEnumerable(` wrapper, so the
+#      numbers are ALREADY the user's. The `script(` filename prefix is the
+#      version marker — the legacy form has no filename at all.
+#
+#    ⚠ Getting this wrong shifts every line by 2, which is precisely the defect
+#    this annotator exists to undo. So the mapping is chosen PER DIAGNOSTIC from
+#    the presence of the filename, never assumed from a global constant.
+#
+#    The fixed engine also drops diagnostics that live inside its own injected
+#    prelude, so the "outside your snippet" branch below becomes rare rather
+#    than routine.
+_ENGINE_PREFIX_LINES = 2  # LEGACY only; ignored when the engine reports a filename
+
+_DIAG_RE = re.compile(
+    r'(?:^|\n)(?P<file>[A-Za-z0-9_.\-]+)?\((?P<line>\d+),(?P<col>\d+)\):\s*'
+    r'(?P<sev>error|warning)\s+(?P<code>CS\d+):\s*(?P<msg>.+?)'
+    r'(?=\n[A-Za-z0-9_.\-]*\(\d+,|\Z)',
+    re.DOTALL,
+)
+
+
+def _annotate_compile_errors(error_text: str, source_code: str) -> Optional[str]:
+    """Quote the source line behind each compiler diagnostic, with a caret.
+
+    Returns None when there is nothing to add (no code, no diagnostics, or the
+    diagnostics do not carry a `(line,col)` prefix).
+
+    ⚠ A column is only trusted when it still lands INSIDE the reported line. The
+    legacy engine's column points into the injected `TrackEnumerable(` wrapper,
+    which pushes it past the end of the user's text; a caret beyond the end of
+    the line is worse than no caret, so it is omitted. The fixed engine has
+    already subtracted the wrapper, so its carets land correctly.
+    """
+    if not source_code or not error_text:
+        return None
+
+    lines = source_code.split("\n")
+    out: List[str] = []
+    seen: set[tuple[int, str]] = set()
+    used_legacy_offset = False
+
+    for m in _DIAG_RE.finditer(error_text):
+        reported = int(m.group("line"))
+        col = int(m.group("col"))
+        code = m.group("code")
+        message = " ".join(m.group("msg").split())
+
+        # A filename means the engine already re-anchored the line (#line), so the
+        # number is the user's. No filename means the legacy +2 offset applies.
+        already_user_coords = m.group("file") is not None
+        user_line = reported if already_user_coords else reported - _ENGINE_PREFIX_LINES
+        if not already_user_coords:
+            used_legacy_offset = True
+
+        if (user_line, code) not in seen:
+            seen.add((user_line, code))
+            if not (1 <= user_line <= len(lines)):
+                # Not in the submitted snippet — the diagnostic is inside the
+                # engine's own injected text. Say so rather than quoting an
+                # unrelated line.
+                out.append(f"  engine line {reported}: {code} — {message}\n"
+                           f"    (outside your snippet; the reported line number is "
+                           f"not a line you wrote)")
+                continue
+
+            text = lines[user_line - 1]
+            width = len(str(user_line))
+            out.append(f"  your line {user_line}:")
+            out.append(f"    {user_line:>{width}} | {text}")
+            if 1 <= col <= len(text) + 1:
+                out.append(f"    {' ' * width} | {' ' * (col - 1)}^")
+            out.append(f"    {code}: {message}")
+
+    if not out:
+        return None
+
+    header = (
+        f"⚠ Compiler line numbers are the ENGINE's (it prepends "
+        f"{_ENGINE_PREFIX_LINES} lines), so the raw number is "
+        f"+{_ENGINE_PREFIX_LINES}. Mapped back to your snippet:\n"
+        if used_legacy_offset else
+        "⚠ The engine reported these in YOUR coordinates:\n"
+    )
+    return header + "\n".join(out)
 
 
 # ── Error → Paracore Suggestion Mapper ──────────────────────────────────────
@@ -550,6 +687,46 @@ def format_execution_error(result: Dict[str, Any]) -> str:
 # to Paracore-specific suggestions for agent self-correction.
 
 _ERROR_SUGGESTIONS: list[tuple[str, str]] = [
+    # ⚠⚠ FIRST because it is the most misleading error this engine can produce.
+    # The pipeline-tracking rewriter wraps a call by NAME, so any call named
+    # Append/Prepend/Reverse/Cast/OfType/Concat/Join/... is wrapped in
+    # TrackEnumerable(...) even when the receiver is NOT a LINQ sequence.
+    # TrackEnumerable<T>(IEnumerable<T>) then cannot infer T and the compile
+    # fails with a message that names the ENGINE's helper, never the user's
+    # expression.
+    #
+    # ROOT CAUSE, proven out of process 2026-10-08 against the real engine code:
+    # SemanticTrackingGuard builds a throwaway compilation from
+    # ScriptReferenceProvider.GetCoreReferences(), which resolved
+    # typeof(object).Assembly — System.Private.CoreLib, the IMPLEMENTATION
+    # assembly — and NOT the framework FACADES (System.Runtime, System.Collections,
+    # netstandard). Every assembly built against .NET Core names the facade as the
+    # home of System.Object / System.Enum / IList<>, so in any submission touching
+    # the Revit API the guard's compilation failed with CS0012, nothing resolved,
+    # every candidate fell through the guard's unresolved branch, and the guard was
+    # effectively inert: the rewriter wrapped by name alone. A legal
+    # StringBuilder.Append became TrackEnumerable<T>(...) and CS0411 followed.
+    # The script itself never noticed, because CSharpScript's ScriptOptions carries
+    # a resolver that supplies the facades automatically — the guard had no such
+    # resolver. Fixed in CoreScript.Engine by adding the facades to
+    # GetCoreReferences, plus a self-test in IsEnumerableLike and a fail-open gate
+    # in the guard.
+    (
+        r"CS0411.*TrackEnumerable|TrackEnumerable.*cannot be inferred"
+        r"|cannot be inferred from the usage",
+
+        "This is an ENGINE defect, not your mistake. The pipeline-tracking rewriter "
+        "wraps any call named Append/Prepend/Reverse/Cast/OfType/Concat/Join by NAME, "
+        "so a non-LINQ receiver can end up inside TrackEnumerable<T>(IEnumerable<T>), "
+        "which cannot infer T. The engine's guard was supposed to prevent exactly that "
+        "but analysed against a reference set missing the framework facades, so it "
+        "resolved nothing in any Revit-touching submission (fixed 2026-10-08 in "
+        "CoreScript.Engine — see ScriptReferenceProvider.FrameworkFacades). If you "
+        "still see this, the installed engine predates that fix. Workarounds: "
+        "(a) for strings use StringBuilder.AppendLine(), or build with `+`, instead "
+        "of .Append(); (b) declare the receiver IN THE SAME script so its type is "
+        "resolvable; (c) restructure so the call is not the outer expression."
+    ),
     # LINQ banned patterns
     (
         r"does not contain a definition for 'Where'|'Where' is not|'Where' does not exist|\.Where\(.*not",

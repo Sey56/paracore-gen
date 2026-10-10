@@ -226,7 +226,8 @@ def pick_object(selection_type: str = "Element", category_filter: str = "") -> s
 
 
 @mcp.tool()
-def export_view(view_name: str = "", pixel_size: int = 1200) -> Image:
+def export_view(view_name: str = "", pixel_size: int = 1200,
+                annotations: str = "model") -> Image:
     """
     Render a Revit view to an image and return it, so you can SEE the model.
 
@@ -239,22 +240,27 @@ def export_view(view_name: str = "", pixel_size: int = 1200) -> Image:
             Omit it to export the ACTIVE view. Matched case-insensitively; a view
             template cannot be exported.
         pixel_size: longest-edge pixel size. Default 1200; 2000 for detail.
+        annotations: what to do with dimensions, tags and datum marks.
+            * "model" (default) — hide ALL annotation. The model fills the frame;
+              dimensions, room tags and text notes are NOT in the picture.
+            * "tags" — hide only the datum/marker categories (levels, grids,
+              section and elevation marks, callouts) and KEEP dimensions, text
+              notes and room/door/window tags. Use this whenever you are checking
+              a dimensioned drawing, reading a room tag, or comparing against a
+              plan you were asked to reproduce.
+            * "all" — hide nothing. Everything is visible, but Revit does not clip
+              annotation to the view, so markers sitting outside the model are
+              drawn too and the model shrinks to a small part of the frame.
+            ⚠ "model" is the only mode where you cannot check a dimension by eye.
+              If the task mentions dimensions, tags or room names, ask for "tags".
 
     Returns the rendered image. On failure it returns a text explanation instead — most
     often the named view does not exist, in which case the message lists views that do.
 
     ⚠ Seeing is not measuring: an image shows a wrong proportion, never a wrong quantity.
     Pair it with the count check (GetElements(...).Count(), Doc.GetWarnings()).
-    ⚠ Annotation is SUPPRESSED for this export. Revit's image export does NOT clip
-    annotation to the view, so level heads, grid bubbles and elevation/section marks are
-    drawn wherever they sit — and because the whole extent is fitted to the page, they
-    SHRINK the subject. That is not limited to 3D views: a plan view with elevation
-    markers beside it renders the building into a fraction of the frame. The engine hides
-    the whole annotation set for the export and restores it, so the picture frames the
-    MODEL. To keep the tags, export in-script with
-    `ExportImage(path, view, px, hideAnnotation: false)`.
     """
-    result = export_view_report(view_name, pixel_size)
+    result = export_view_report(view_name, pixel_size, annotations)
     if result.get("path"):
         return Image(path=result["path"])
     return result.get("error") or "The view export failed."
@@ -434,6 +440,7 @@ _SKILL_DESCRIPTIONS: dict[str, str] = {
     "discovery-debug":    "Exploring unknown elements — CombinedParams, Peek, BuiltInParams, GeometrySummary",
     "create-geometry":    "Creating new Revit elements — Wall.Create, Floor.Create, XYZ, CurveLoop, InputUnit",
     "project-modeling":   "Modelling a REAL building, per level — levels, plan views, grids, slabs, walls, curtain walls, roofs, rooms, doors/windows, stairs, columns, wall-type duplication, family loading, plus per-build verification and safety recipes. The path for \"model a building\" — NOT massing.",
+    "annotations-dimensions": "The DRAWING layer — dimension chains and how to READ a dimension correctly (never ValueString), room/door/window tags, tag orientation (Vertical / AnyModelDirection), text notes, room separation lines, and why NewRooms2 creates duplicate tags. Read this whenever a task mentions dimensions, tags, labels or room names.",
     "identity-orientation": "Element identity and door/window data — FamilyName, Matches, RoomFrom, Handing",
     "materials-units":    "Materials, unit conversion, numeric helpers — InputUnit, OutputUnit, IsAlmostEqualTo",
     "family-authoring":   "Creating and editing loadable families (.rfa) — NewFamilyDocument, EditFamily, extrusions, revolutions, sweeps, blends, FamilyManager parameters and types",
@@ -462,6 +469,22 @@ def analyze_revit_model() -> str:
     return "First, read paracore://system-prompt for the complete Paracore method catalog. Then explore the Revit model."
 
 if __name__ == "__main__":
+    # ── THE SECOND EYE ────────────────────────────────────────────────────────
+    # A resident daemon thread that answers Revit's modal failure dialogs from
+    # OUTSIDE, so a tool call blocked on a dialog can still complete. It must be
+    # started HERE, at boot, and not per call: the call that provokes a dialog is
+    # the one that cannot start anything. See mcp_core/dialog_watcher.py.
+    # ⚠ It never suppresses a failure and never touches a transaction — it only
+    #   presses the button a human would press. Kill switch: PARACORE_WATCH_DIALOGS=0
+    try:
+        from mcp_core.dialog_watcher import start_dialog_watcher
+        if start_dialog_watcher():
+            logger.info("Dialog watcher resident (pid=%d).", os.getpid())
+        else:
+            logger.info("Dialog watcher not started (disabled or already running).")
+    except Exception as _exc:            # never let the watcher stop the server
+        logger.warning("Dialog watcher failed to start: %r", _exc)
+
     init_channel()
     logger.info("Starting Paracore FastMCP Server via stdio...")
     try:

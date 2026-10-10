@@ -163,8 +163,13 @@ def validate_csharp(csharp_code: str) -> str | None:
     return None
 
 
-def handle_execution_result(result: dict) -> str:
-    """Process a gRPC execution result dict into a user-facing string."""
+def handle_execution_result(result: dict, source_code: str = "") -> str:
+    """Process a gRPC execution result dict into a user-facing string.
+
+    `source_code` is the snippet that was submitted — passed to the error
+    formatter so a compile failure can quote the offending line (see
+    tool_helpers.format_execution_error).
+    """
     if result.get("user_rejected"):
         return USER_REJECTED_MSG
     if result.get("read_only_violation"):
@@ -174,7 +179,7 @@ def handle_execution_result(result: dict) -> str:
         return READ_ONLY_VIOLATION_MSG % err
     if result["is_success"]:
         return summarize_execution_result(result)
-    return format_execution_error(result)
+    return format_execution_error(result, source_code)
 
 
 # ── Tool implementations ───────────────────────────────────────────────────
@@ -218,7 +223,7 @@ def explore_revit_data(
         record_tool_call("explore_revit_data", result.get("is_success", False),
                          duration_ms, suspicious_params=suspicious_count,
                          lint_notes=1 if lint_note else 0)
-        return param_warning + (lint_note or "") + handle_execution_result(result)
+        return param_warning + (lint_note or "") + handle_execution_result(result, csharp_code)
     except RevitBusy as busy:
         duration_ms = (time.perf_counter() - t0) * 1000
         record_tool_call("explore_revit_data", False, duration_ms, refused_busy=True)
@@ -306,7 +311,7 @@ def execute_dynamic_query(
                          workflow_warning=bool(workflow_warning),
                          bulk_write_detected=bool(bulk_warnings),
                          lint_notes=1 if lint_note else 0)
-        return prefix + handle_execution_result(result)
+        return prefix + handle_execution_result(result, csharp_code)
     except RevitBusy as busy:
         duration_ms = (time.perf_counter() - t0) * 1000
         record_tool_call("execute_dynamic_query", False, duration_ms, refused_busy=True)
@@ -586,23 +591,103 @@ def pick_object_report(selection_type: str = "Element", category_filter: str = "
 
 _VIEW_EXPORT_DIR = os.path.join(tempfile.gettempdir(), "paracore_views")
 
+# Annotation modes. Measured 2026-10-08 on the house model, exporting the ground-floor plan:
+#   "model" — the engine hides every annotation category. The MODEL fills the frame, but
+#             dimensions, room tags and the AREA note are all invisible.
+#   "all"   — the engine hides nothing. Every dimension and tag IS visible, but Revit does
+#             not clip annotation to the view, so the four section marks beside the plan are
+#             rendered too and the model shrinks to roughly a seventh of the frame.
+#   "tags"  — MCP-side: hide only the DATUM/MARKER categories and keep the ones a drawing is
+#             read for. That is the legible annotated plan, and it is the mode to use when
+#             checking dimensions or tags.
+#
+# ⚠ "tags" is implemented HERE, in the snippet, using raw Autodesk.Revit.DB — so it needs no
+#   engine change, no add-in rebuild and no Revit restart. If it is ever promoted into the
+#   engine it becomes a new SHARED method (see Docs/PROJECT_MODELING_PLAN.md §4).
+_ANNOTATION_MODES = {
+    "model": "model", "none": "model",
+    "tags": "tags", "annotated": "tags", "dimensions": "tags",
+    "all": "all", "everything": "all",
+}
 
-def _export_view_snippet(base_path: str, view_name: str, pixel_size: int) -> str:
+# The categories a dimensioned drawing is READ for. Everything else in
+# CategoryType.Annotation is treated as a datum/marker and hidden — the allowlist
+# fails safe: an annotation category nobody thought of gets hidden, which can only
+# ever improve the framing, never break the drawing.
+_KEEP_ANNOTATION_BICS = (
+    "OST_Dimensions",
+    "OST_TextNotes",
+    "OST_RoomTags",
+    "OST_DoorTags",
+    "OST_WindowTags",
+)
+
+
+def _export_view_snippet(base_path: str, view_name: str, pixel_size: int,
+                         hide_annotation: bool) -> str:
     """Minimal C#: one call, no Transact (an export does not modify the model)."""
     view_arg = "null"  # null => the active view
     if view_name:
         escaped = view_name.replace("\\", "\\\\").replace('"', '\\"')
         view_arg = f'"{escaped}"'
+    hide_arg = "true" if hide_annotation else "false"
     # @-verbatim for the path (backslashes stay literal); an escaped literal for the name.
     return (
-        f'var __shot = ExportImage(@"{base_path}", {view_arg}, {int(pixel_size)});\n'
+        f'var __shot = ExportImage(@"{base_path}", {view_arg}, {int(pixel_size)}, {hide_arg});\n'
         f'Println("exported: " + __shot);\n'
+    )
+
+
+def _export_view_tags_snippet(base_path: str, view_name: str, pixel_size: int) -> str:
+    """Keep dimensions and tags; hide the datum/marker categories that overflow the frame.
+
+    Wrapped in a TransactionGroup so the rollback restores every category's visibility in
+    one step and leaves NO undo entry — the user's view is exactly as they left it.
+    """
+    escaped = view_name.replace("\\", "\\\\").replace('"', '\\"') if view_name else ""
+    view_arg = f'"{escaped}"' if view_name else "null"
+    keep = ", ".join(f"(long)BuiltInCategory.{bic}" for bic in _KEEP_ANNOTATION_BICS)
+    return (
+        f'var __vname = "{escaped}";\n'
+        f'View __v = null;\n'
+        f'if (__vname.Length == 0) {{ __v = Doc.ActiveView; }}\n'
+        f'else {{\n'
+        f'  foreach (var __c in new FilteredElementCollector(Doc).OfClass(typeof(View)).Cast<View>()) {{\n'
+        f'    if (!__c.IsTemplate && __c.Name.Equals(__vname, StringComparison.OrdinalIgnoreCase)) {{ __v = __c; break; }}\n'
+        f'  }}\n'
+        f'}}\n'
+        f'if (__v == null) {{ throw new InvalidOperationException('
+        f'"export_view: no view named \'" + __vname + "\' in this document."); }}\n'
+        f'var __keep = new HashSet<long> {{ {keep} }};\n'
+        f'var __tg = new TransactionGroup(Doc, "export_view: keep tags");\n'
+        f'__tg.Start();\n'
+        f'int __hid = 0;\n'
+        f'using (var __t = new Transaction(Doc, "hide annotation markers")) {{\n'
+        f'  __t.Start();\n'
+        f'  foreach (Category __cat in Doc.Settings.Categories) {{\n'
+        f'    try {{\n'
+        f'      if (__cat.CategoryType != CategoryType.Annotation) continue;\n'
+        f'      if (__keep.Contains(__cat.Id.Value)) continue;\n'
+        f'      __v.SetCategoryHidden(__cat.Id, true);\n'
+        f'      __hid++;\n'
+        f'    }} catch {{ }}\n'
+        f'  }}\n'
+        f'  __t.Commit();\n'
+        f'}}\n'
+        f'try {{\n'
+        f'  var __shot = ExportImage(@"{base_path}", {view_arg}, {int(pixel_size)}, false);\n'
+        f'  Println("exported: " + __shot);\n'
+        f'  Println("marker categories hidden: " + __hid);\n'
+        f'}} finally {{\n'
+        f'  try {{ __tg.RollBack(); }} catch {{ }}\n'
+        f'}}\n'
     )
 
 
 def export_view_report(
     view_name: str = "",
     pixel_size: int = 1200,
+    annotations: str = "model",
     *,
     session_id: str = "mcp-session",
     source: str = "mcp_agent",
@@ -610,14 +695,33 @@ def export_view_report(
     """
     Render a Revit view to an image file and return the path that was written.
 
-    Returns {"path": str | None, "view": str, "error": str | None}.
+    `annotations` selects what the export does with annotation:
+      * "model" (default) — every annotation category is hidden, so the picture frames the
+        MODEL. Nothing readable is lost if you only care about geometry.
+      * "tags" — hide the datum/marker categories (levels, grids, section/elevation marks,
+        callouts) but KEEP dimensions, text notes and room/door/window tags. Use this to
+        check a dimensioned drawing or read a room tag.
+      * "all" — hide nothing. Every tag is visible, but Revit does not clip annotation to
+        the view, so markers that sit outside the model are drawn too and the model shrinks
+        to a small part of the frame.
+
+    Returns {"path": str | None, "view": str, "annotations": str, "error": str | None}.
     The transport layer (MCP) turns "path" into an image content block; the in-app
     agent can read the file directly. Kept FastMCP-free so both consumers share it.
 
-    No transaction is opened — an export does not modify the model.
+    No transaction is opened by the caller — an export does not modify the model, and the
+    "tags" mode rolls its own TransactionGroup back before returning.
     """
     t0 = time.perf_counter()
     view_name = (view_name or "").strip()
+
+    mode = _ANNOTATION_MODES.get((annotations or "").strip().lower())
+    if mode is None:
+        return {"path": None, "view": view_name, "annotations": annotations,
+                "error": ("Unknown annotations mode "
+                          f"'{annotations}'. Use 'model' (annotation hidden), "
+                          "'tags' (dimensions and tags kept, markers hidden) or "
+                          "'all' (nothing hidden).")}
 
     try:
         pixel = max(200, min(int(pixel_size or 1200), 8000))
@@ -626,10 +730,13 @@ def export_view_report(
 
     os.makedirs(_VIEW_EXPORT_DIR, exist_ok=True)
     base = os.path.join(_VIEW_EXPORT_DIR, f"view_{uuid.uuid4().hex[:8]}")
-    label = f"export view {view_name or '(active)'}"
+    label = f"export view {view_name or '(active)'} [{mode}]"
 
-    code = _export_view_snippet(base, view_name, pixel)
-    logger.info(f"Exporting view: {view_name or '(active view)'} at {pixel}px")
+    if mode == "tags":
+        code = _export_view_tags_snippet(base, view_name, pixel)
+    else:
+        code = _export_view_snippet(base, view_name, pixel, hide_annotation=(mode == "model"))
+    logger.info(f"Exporting view: {view_name or '(active view)'} at {pixel}px, mode={mode}")
 
     try:
         with single_flight(label):
@@ -638,16 +745,18 @@ def export_view_report(
         record_tool_call("export_view", False, (time.perf_counter() - t0) * 1000,
                          refused_busy=True)
         logger.warning(f"Refused concurrent export request: {busy}")
-        return {"path": None, "view": view_name, "error": busy_message(busy)}
+        return {"path": None, "view": view_name, "annotations": mode,
+                "error": busy_message(busy)}
     except Exception as e:
         record_tool_call("export_view", False, (time.perf_counter() - t0) * 1000)
         logger.error(f"export_view exception: {e}")
-        return {"path": None, "view": view_name, "error": f"Export failed: {e}"}
+        return {"path": None, "view": view_name, "annotations": mode,
+                "error": f"Export failed: {e}"}
 
     if not result.get("is_success"):
         record_tool_call("export_view", False, (time.perf_counter() - t0) * 1000)
-        return {"path": None, "view": view_name,
-                "error": format_execution_error(result)}
+        return {"path": None, "view": view_name, "annotations": mode,
+                "error": format_execution_error(result, code)}
 
     # ⚠ Find by PREFIX, newest match. Never trust the exact name we passed in.
     written = None
@@ -660,11 +769,11 @@ def export_view_report(
 
     if not written or not os.path.exists(written):
         record_tool_call("export_view", False, (time.perf_counter() - t0) * 1000)
-        return {"path": None, "view": view_name,
+        return {"path": None, "view": view_name, "annotations": mode,
                 "error": ("The export reported success but no image file matching "
                           f"'{os.path.basename(base)}*' appeared in {_VIEW_EXPORT_DIR}. "
                           "Check the view is not a view template, then try again.")}
 
     record_tool_call("export_view", True, (time.perf_counter() - t0) * 1000)
-    return {"path": written, "view": view_name, "error": None}
+    return {"path": written, "view": view_name, "annotations": mode, "error": None}
 
