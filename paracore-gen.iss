@@ -39,7 +39,7 @@
 AppId={{Paracore-F9E8D7C6-B5A4-3210-FEDC-BA9876543210}}
 AppName={#MCPTitle}
 AppVersion={#Version}
-AppPublisher=Paracore
+AppPublisher=Paras Codarch
 AppPublisherURL=https://paracore.io
 AppSupportURL=https://paracore.io/support
 VersionInfoVersion={#Version}
