@@ -5,7 +5,7 @@ import warnings
 
 import corescript_pb2 as corescript__pb2
 
-GRPC_GENERATED_VERSION = '1.75.1'
+GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + f' but the generated code in corescript_pb2_grpc.py depends on'
+        + ' but the generated code in corescript_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -158,6 +158,21 @@ class CoreScriptRunnerStub(object):
                 '/CoreScript.CoreScriptRunner/ExecuteRepl',
                 request_serializer=corescript__pb2.ExecuteReplRequest.SerializeToString,
                 response_deserializer=corescript__pb2.ExecuteReplResponse.FromString,
+                _registered_method=True)
+        self.GetReplCompletions = channel.unary_unary(
+                '/CoreScript.CoreScriptRunner/GetReplCompletions',
+                request_serializer=corescript__pb2.GetReplCompletionsRequest.SerializeToString,
+                response_deserializer=corescript__pb2.GetReplCompletionsResponse.FromString,
+                _registered_method=True)
+        self.GetReplDiagnostics = channel.unary_unary(
+                '/CoreScript.CoreScriptRunner/GetReplDiagnostics',
+                request_serializer=corescript__pb2.GetReplDiagnosticsRequest.SerializeToString,
+                response_deserializer=corescript__pb2.GetReplDiagnosticsResponse.FromString,
+                _registered_method=True)
+        self.GetReplHover = channel.unary_unary(
+                '/CoreScript.CoreScriptRunner/GetReplHover',
+                request_serializer=corescript__pb2.GetReplHoverRequest.SerializeToString,
+                response_deserializer=corescript__pb2.GetReplHoverResponse.FromString,
                 _registered_method=True)
 
 
@@ -315,6 +330,30 @@ class CoreScriptRunnerServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetReplCompletions(self, request, context):
+        """IntelliSense for the REPL playground. Read-only: it compiles the buffer in an
+        in-memory Roslyn workspace and returns completions. It never executes the code.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetReplDiagnostics(self, request, context):
+        """Red squiggles for the REPL playground. Read-only, same workspace, same contract:
+        compiles the buffer and returns warnings/errors in the buffer's own coordinates.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetReplHover(self, request, context):
+        """Symbol hover for the REPL playground. Read-only, same workspace: resolves the symbol
+        under the caret and returns its signature and XML documentation.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_CoreScriptRunnerServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -442,6 +481,21 @@ def add_CoreScriptRunnerServicer_to_server(servicer, server):
                     servicer.ExecuteRepl,
                     request_deserializer=corescript__pb2.ExecuteReplRequest.FromString,
                     response_serializer=corescript__pb2.ExecuteReplResponse.SerializeToString,
+            ),
+            'GetReplCompletions': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetReplCompletions,
+                    request_deserializer=corescript__pb2.GetReplCompletionsRequest.FromString,
+                    response_serializer=corescript__pb2.GetReplCompletionsResponse.SerializeToString,
+            ),
+            'GetReplDiagnostics': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetReplDiagnostics,
+                    request_deserializer=corescript__pb2.GetReplDiagnosticsRequest.FromString,
+                    response_serializer=corescript__pb2.GetReplDiagnosticsResponse.SerializeToString,
+            ),
+            'GetReplHover': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetReplHover,
+                    request_deserializer=corescript__pb2.GetReplHoverRequest.FromString,
+                    response_serializer=corescript__pb2.GetReplHoverResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -1119,6 +1173,87 @@ class CoreScriptRunner(object):
             '/CoreScript.CoreScriptRunner/ExecuteRepl',
             corescript__pb2.ExecuteReplRequest.SerializeToString,
             corescript__pb2.ExecuteReplResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetReplCompletions(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/CoreScript.CoreScriptRunner/GetReplCompletions',
+            corescript__pb2.GetReplCompletionsRequest.SerializeToString,
+            corescript__pb2.GetReplCompletionsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetReplDiagnostics(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/CoreScript.CoreScriptRunner/GetReplDiagnostics',
+            corescript__pb2.GetReplDiagnosticsRequest.SerializeToString,
+            corescript__pb2.GetReplDiagnosticsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetReplHover(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/CoreScript.CoreScriptRunner/GetReplHover',
+            corescript__pb2.GetReplHoverRequest.SerializeToString,
+            corescript__pb2.GetReplHoverResponse.FromString,
             options,
             channel_credentials,
             insecure,

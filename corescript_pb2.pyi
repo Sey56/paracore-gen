@@ -721,3 +721,109 @@ class ExecuteReplResponse(_message.Message):
     user_rejected: bool
     read_only_violation: bool
     def __init__(self, is_success: bool = ..., output: _Optional[str] = ..., error_message: _Optional[str] = ..., structured_output: _Optional[_Iterable[_Union[StructuredOutputItem, _Mapping]]] = ..., pipeline_diagnostics: _Optional[_Iterable[int]] = ..., user_rejected: bool = ..., read_only_violation: bool = ...) -> None: ...
+
+class GetReplCompletionsRequest(_message.Message):
+    __slots__ = ("code", "caret_offset", "session_id")
+    CODE_FIELD_NUMBER: _ClassVar[int]
+    CARET_OFFSET_FIELD_NUMBER: _ClassVar[int]
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    code: str
+    caret_offset: int
+    session_id: str
+    def __init__(self, code: _Optional[str] = ..., caret_offset: _Optional[int] = ..., session_id: _Optional[str] = ...) -> None: ...
+
+class ReplCompletionItem(_message.Message):
+    __slots__ = ("label", "insert_text", "kind", "detail", "sort_text")
+    LABEL_FIELD_NUMBER: _ClassVar[int]
+    INSERT_TEXT_FIELD_NUMBER: _ClassVar[int]
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    DETAIL_FIELD_NUMBER: _ClassVar[int]
+    SORT_TEXT_FIELD_NUMBER: _ClassVar[int]
+    label: str
+    insert_text: str
+    kind: str
+    detail: str
+    sort_text: str
+    def __init__(self, label: _Optional[str] = ..., insert_text: _Optional[str] = ..., kind: _Optional[str] = ..., detail: _Optional[str] = ..., sort_text: _Optional[str] = ...) -> None: ...
+
+class GetReplCompletionsResponse(_message.Message):
+    __slots__ = ("is_success", "items", "error_message")
+    IS_SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    ITEMS_FIELD_NUMBER: _ClassVar[int]
+    ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    is_success: bool
+    items: _containers.RepeatedCompositeFieldContainer[ReplCompletionItem]
+    error_message: str
+    def __init__(self, is_success: bool = ..., items: _Optional[_Iterable[_Union[ReplCompletionItem, _Mapping]]] = ..., error_message: _Optional[str] = ...) -> None: ...
+
+class GetReplDiagnosticsRequest(_message.Message):
+    __slots__ = ("code", "session_id")
+    CODE_FIELD_NUMBER: _ClassVar[int]
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    code: str
+    session_id: str
+    def __init__(self, code: _Optional[str] = ..., session_id: _Optional[str] = ...) -> None: ...
+
+class ReplDiagnostic(_message.Message):
+    __slots__ = ("start_line", "start_column", "end_line", "end_column", "message", "severity")
+    START_LINE_FIELD_NUMBER: _ClassVar[int]
+    START_COLUMN_FIELD_NUMBER: _ClassVar[int]
+    END_LINE_FIELD_NUMBER: _ClassVar[int]
+    END_COLUMN_FIELD_NUMBER: _ClassVar[int]
+    MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    SEVERITY_FIELD_NUMBER: _ClassVar[int]
+    start_line: int
+    start_column: int
+    end_line: int
+    end_column: int
+    message: str
+    severity: str
+    def __init__(self, start_line: _Optional[int] = ..., start_column: _Optional[int] = ..., end_line: _Optional[int] = ..., end_column: _Optional[int] = ..., message: _Optional[str] = ..., severity: _Optional[str] = ...) -> None: ...
+
+class GetReplDiagnosticsResponse(_message.Message):
+    __slots__ = ("is_success", "items", "error_message")
+    IS_SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    ITEMS_FIELD_NUMBER: _ClassVar[int]
+    ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    is_success: bool
+    items: _containers.RepeatedCompositeFieldContainer[ReplDiagnostic]
+    error_message: str
+    def __init__(self, is_success: bool = ..., items: _Optional[_Iterable[_Union[ReplDiagnostic, _Mapping]]] = ..., error_message: _Optional[str] = ...) -> None: ...
+
+class GetReplHoverRequest(_message.Message):
+    __slots__ = ("code", "caret_offset", "session_id")
+    CODE_FIELD_NUMBER: _ClassVar[int]
+    CARET_OFFSET_FIELD_NUMBER: _ClassVar[int]
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    code: str
+    caret_offset: int
+    session_id: str
+    def __init__(self, code: _Optional[str] = ..., caret_offset: _Optional[int] = ..., session_id: _Optional[str] = ...) -> None: ...
+
+class ReplHoverInfo(_message.Message):
+    __slots__ = ("signature", "documentation", "kind", "start_line", "start_column", "end_line", "end_column")
+    SIGNATURE_FIELD_NUMBER: _ClassVar[int]
+    DOCUMENTATION_FIELD_NUMBER: _ClassVar[int]
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    START_LINE_FIELD_NUMBER: _ClassVar[int]
+    START_COLUMN_FIELD_NUMBER: _ClassVar[int]
+    END_LINE_FIELD_NUMBER: _ClassVar[int]
+    END_COLUMN_FIELD_NUMBER: _ClassVar[int]
+    signature: str
+    documentation: str
+    kind: str
+    start_line: int
+    start_column: int
+    end_line: int
+    end_column: int
+    def __init__(self, signature: _Optional[str] = ..., documentation: _Optional[str] = ..., kind: _Optional[str] = ..., start_line: _Optional[int] = ..., start_column: _Optional[int] = ..., end_line: _Optional[int] = ..., end_column: _Optional[int] = ...) -> None: ...
+
+class GetReplHoverResponse(_message.Message):
+    __slots__ = ("is_success", "info", "error_message")
+    IS_SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    INFO_FIELD_NUMBER: _ClassVar[int]
+    ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    is_success: bool
+    info: ReplHoverInfo
+    error_message: str
+    def __init__(self, is_success: bool = ..., info: _Optional[_Union[ReplHoverInfo, _Mapping]] = ..., error_message: _Optional[str] = ...) -> None: ...
