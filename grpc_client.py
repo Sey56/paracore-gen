@@ -984,3 +984,161 @@ def execute_repl(code: str, session_id: str, license_tier: str = "free",
         logging.error(f"Error calling ExecuteRepl gRPC: {e}")
         return {"is_success": False, "output": "", "error_message": str(e),
                 "user_rejected": False, "read_only_violation": False}
+
+
+def get_repl_completions(code: str, caret_offset: int, session_id: str = "global",
+                         timeout: float = 10.0):
+    """
+    Calls the gRPC service to get IntelliSense completions for a REPL buffer.
+
+    Read-only: the add-in compiles the buffer in an in-memory Roslyn workspace and
+    returns completion suggestions. It never executes the code and never touches the
+    Revit document, so it does NOT need the Revit UI thread.
+
+    ⚠ Short timeout on purpose (default 10 s). Completion runs on EVERY keystroke, so a
+    slow answer is worse than no answer: the editor debounces and cancels superseded
+    requests, and a hung completion must never block typing. Never raise this to the
+    REPL execution deadline (600 s) — that would make the editor feel frozen.
+    """
+    try:
+        with get_corescript_runner_stub() as stub:
+            request = corescript_pb2.GetReplCompletionsRequest(
+                code=code,
+                caret_offset=caret_offset,
+                session_id=session_id,
+            )
+            response = stub.GetReplCompletions(request, timeout=timeout)
+            items = [
+                {
+                    "label": item.label,
+                    "insert_text": item.insert_text,
+                    "kind": item.kind,
+                    "detail": item.detail,
+                    "sort_text": item.sort_text,
+                }
+                for item in response.items
+            ]
+            return {
+                "is_success": response.is_success,
+                "items": items,
+                "error_message": response.error_message,
+            }
+    except grpc.RpcError as e:
+        if e.code() == grpc.StatusCode.UNAVAILABLE:
+            return {"is_success": False, "items": [], "error_message": GRPC_UNAVAILABLE_MSG}
+        if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+            # Completion is an editor convenience — a miss is silent, never an error
+            # the user must read. The editor simply shows nothing and tries again on
+            # the next keystroke.
+            return {"is_success": False, "items": [],
+                    "error_message": f"completion timed out after {timeout:.0f}s"}
+        logging.error(format_grpc_error(e))
+        return {"is_success": False, "items": [], "error_message": f"gRPC Error: {e.details()}"}
+    except Exception as e:
+        logging.error(f"Error calling GetReplCompletions gRPC: {e}")
+        return {"is_success": False, "items": [], "error_message": str(e)}
+
+
+def get_repl_diagnostics(code: str, session_id: str = "global", timeout: float = 15.0):
+    """
+    Calls the gRPC service for REPL diagnostics (the red squiggles).
+
+    Read-only: the add-in compiles the buffer in the same in-memory Roslyn workspace as
+    completion and returns warnings/errors in the buffer's own coordinates. It never
+    executes the code and never touches the Revit document.
+
+    ⚠ Slightly longer timeout than completion (15 s vs 10 s): diagnostics need a full
+    compilation, not just a semantic query, and they are requested on idle rather than on
+    every keystroke — a slow answer here does not block typing.
+    """
+    try:
+        with get_corescript_runner_stub() as stub:
+            request = corescript_pb2.GetReplDiagnosticsRequest(
+                code=code,
+                session_id=session_id,
+            )
+            response = stub.GetReplDiagnostics(request, timeout=timeout)
+            items = [
+                {
+                    "start_line": item.start_line,
+                    "start_column": item.start_column,
+                    "end_line": item.end_line,
+                    "end_column": item.end_column,
+                    "message": item.message,
+                    "severity": item.severity,
+                }
+                for item in response.items
+            ]
+            return {
+                "is_success": response.is_success,
+                "items": items,
+                "error_message": response.error_message,
+            }
+    except grpc.RpcError as e:
+        if e.code() == grpc.StatusCode.UNAVAILABLE:
+            return {"is_success": False, "items": [], "error_message": GRPC_UNAVAILABLE_MSG}
+        if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+            return {"is_success": False, "items": [],
+                    "error_message": f"diagnostics timed out after {timeout:.0f}s"}
+        logging.error(format_grpc_error(e))
+        return {"is_success": False, "items": [], "error_message": f"gRPC Error: {e.details()}"}
+    except Exception as e:
+        logging.error(f"Error calling GetReplDiagnostics gRPC: {e}")
+        return {"is_success": False, "items": [], "error_message": str(e)}
+
+
+def get_repl_hover(code: str, caret_offset: int, session_id: str = "global",
+                   timeout: float = 10.0):
+    """
+    Calls the gRPC service for REPL symbol hover.
+
+    Read-only: the add-in resolves the symbol under the caret in the same in-memory Roslyn
+    workspace as completion and diagnostics, and returns its signature and XML documentation.
+    It never executes the code and never touches the Revit document.
+
+    ⚠ "Nothing to show" is NOT an error. A caret over whitespace comes back `is_success`
+    True with `info` None; the editor simply shows no tooltip. Do not turn that into a
+    failure the UI has to special-case.
+
+    ⚠ Same short timeout as completion: hover fires as the mouse moves, so a slow answer is
+    worse than no answer.
+    """
+    try:
+        with get_corescript_runner_stub() as stub:
+            request = corescript_pb2.GetReplHoverRequest(
+                code=code,
+                caret_offset=caret_offset,
+                session_id=session_id,
+            )
+            response = stub.GetReplHover(request, timeout=timeout)
+
+            # ⚠ `HasField` is the only reliable presence test for a message field in proto3:
+            # reading `response.info` when it was never set yields a DEFAULT instance, not
+            # None, so `if response.info:` would be truthy for an empty tooltip.
+            info = None
+            if response.HasField("info"):
+                info = {
+                    "signature": response.info.signature,
+                    "documentation": response.info.documentation,
+                    "kind": response.info.kind,
+                    "start_line": response.info.start_line,
+                    "start_column": response.info.start_column,
+                    "end_line": response.info.end_line,
+                    "end_column": response.info.end_column,
+                }
+            return {
+                "is_success": response.is_success,
+                "info": info,
+                "error_message": response.error_message,
+            }
+    except grpc.RpcError as e:
+        if e.code() == grpc.StatusCode.UNAVAILABLE:
+            return {"is_success": False, "info": None, "error_message": GRPC_UNAVAILABLE_MSG}
+        if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+            return {"is_success": False, "info": None,
+                    "error_message": f"hover timed out after {timeout:.0f}s"}
+        logging.error(format_grpc_error(e))
+        return {"is_success": False, "info": None, "error_message": f"gRPC Error: {e.details()}"}
+    except Exception as e:
+        logging.error(f"Error calling GetReplHover gRPC: {e}")
+        return {"is_success": False, "info": None, "error_message": str(e)}
