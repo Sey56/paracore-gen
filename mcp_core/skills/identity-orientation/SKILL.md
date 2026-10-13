@@ -22,15 +22,16 @@ id.ToElement(Doc)                          // resolve ElementId → Element
 Stable regardless of flips:
 
 ```csharp
-door.RoomFrom()                            // "LIVING ROOM"
-door.RoomTo()                              // "CORRIDOR"
-door.RoomAccess()                          // alias for RoomFrom
-door.RoomDestination()                     // alias for RoomTo
-door.Handing()                             // "LH" or "RH"
-door.HingeSide()                           // "Left" or "Right"
-door.IsHandFlipped                         // true/false
-door.IsFacingFlipped                       // true/false
-door.FindSwingArc()                        // largest Arc in geometry (swing path)
+FamilyInstance door = null;                // a door instance
+Println(door.RoomFrom());                  // "LIVING ROOM"
+Println(door.RoomTo());                    // "CORRIDOR"
+Println(door.RoomAccess());                // alias for RoomFrom
+Println(door.RoomDestination());           // alias for RoomTo
+Println(door.Handing());                   // "LH" or "RH"
+Println(door.HingeSide());                 // "Left" or "Right"
+Println(door.IsHandFlipped());             // ⚠ a METHOD, not a property — true/false
+Println(door.IsFacingFlipped());           // ⚠ a METHOD, not a property — true/false
+Println(door.FindSwingArc());              // largest Arc in geometry (swing path)
 ```
 
 ⚠⚠ **These are READ-ONLY. You cannot SET handing.** Measured by reflection 2026-10-08:

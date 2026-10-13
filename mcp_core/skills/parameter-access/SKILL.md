@@ -70,10 +70,11 @@ el.Area        → double (ft²)
 el.Volume      → double (ft³)
 ```
 
-For coordinates:
+For coordinates — ⚠ `Point` and `Curve` live on the DERIVED location classes, never on `Location`:
 ```csharp
-el.Location.Point.X/Y/Z    → coordinates in feet
-el.Location.Curve           → Curve (for line-based elements)
+Element el = null;
+var pt = ((LocationPoint)el.Location).Point;    // XYZ — coordinates in feet
+var cv = ((LocationCurve)el.Location).Curve;    // Curve — for line-based elements
 ```
 
 ## Unit strings

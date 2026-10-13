@@ -13,17 +13,17 @@ Render query results as tables, charts, and text output. These are the final ste
 
 **SAFE — always works (fixed columns):**
 ```csharp
-.CombinedParams().Table()                     // 4 cols: Scope | Name | Storage | Value
-.GroupByParam("X").Table()                    // 2 cols: Group | Count
-.GroupByParam("X", "Sum", "u").Table()        // 3 cols: Group | Count | Total
-.Select(e => new { ... }).Table()             // You chose the columns, so it's safe
+GetElements("Walls").First().CombinedParams().Table()                    // 4 cols: Scope | Name | Storage | Value
+GetElements("Walls").GroupByParam("X").Table()                           // 2 cols: Group | Count
+GetElements("Walls").GroupByParam("X", "Sum", "u").Table()               // 3 cols: Group | Count | Total
+GetElements("Walls").Select(w => new { w.Id, Name = w.Name }).Table()    // you chose the columns
 ```
 
 **FORBIDDEN — dumps every parameter as a column (50-200 columns):**
 ```csharp
-GetElements("Walls").Table()                  // 78+ columns × 593 rows = disaster
-.WhereParam(...).Table()                      // filtered but still all columns
-.SetParam(...).Table()                        // after write, still all columns
+GetElements("Walls").Table()                                             // 78+ columns × 593 rows = disaster
+GetElements("Walls").WhereParam("Base Constraint", "Level 01").Table()   // filtered, still all columns
+GetElements("Walls").SetParam("Comments", "x").Table()                   // after write, still all columns
 ```
 
 **Rule:** If the thing before `.Table()` is NOT `CombinedParams`, `GroupByParam`, or `Select` with explicit columns, add `.Select()` first.
@@ -34,16 +34,18 @@ Column names MUST match Revit parameter names. Replace spaces with underscores �
 
 ```csharp
 // CORRECT:
-.Select(w => new {
+GetElements("Walls").Select(w => new {
     w.Id,
-    Base_Constraint = w.GetStr("Base Constraint"),   // displays as "Base Constraint"
+    Base_Constraint = w.GetStr("Base Constraint"),    // displays as "Base Constraint"
     Top_Offset = w.GetNum("Top Offset", "cm"),        // displays as "Top Offset"
     Area = w.GetNum("Area", "m2")                     // displays as "Area"
 }).Table()
 
-// WRONG:
-Top_Offset_cm = w.GetNum("Top Offset", "cm")    // "Top Offset cm" ≠ "Top Offset"
-Area_m2 = r.GetNum("Area", "m2")                // "Area m2" ≠ "Area"
+// WRONG — the unit suffix leaks into the column header:
+GetElements("Walls").Select(w => new {
+    w.Id,
+    Top_Offset_cm = w.GetNum("Top Offset", "cm")      // "Top Offset cm" ≠ "Top Offset"
+}).Table()
 ```
 
 **NEVER add unit suffixes to column names.** The unit is in `GetNum(name, unit)`, not in the column header.
