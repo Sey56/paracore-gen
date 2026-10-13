@@ -743,6 +743,8 @@ def export_view_report(
     *,
     session_id: str = "mcp-session",
     source: str = "mcp_agent",
+    execution_mode: str = "read_write",
+    license_tier: str = "free",
 ) -> dict:
     """
     Render a Revit view to an image file and return the path that was written.
@@ -763,6 +765,19 @@ def export_view_report(
 
     No transaction is opened by the caller — an export does not modify the model, and the
     "tags" mode rolls its own TransactionGroup back before returning.
+
+    `execution_mode` / `license_tier` exist so a caller with its OWN posture can say so
+    instead of inheriting this one. paracore-takeoff is read-only and enterprise-gated, so
+    it passes execution_mode="read_only". ⚠ That is safe for THIS tool, and the reason is
+    worth keeping: the engine's read-only gate (ReplHandler.ContainsWriteOperations) is a
+    substring scan for .SetVal( / .SetNum( / .SetParam( / .Delete() / .Hide() / Transact( /
+    NewFamilyInstance / Wall.Create / Floor.Create / doc.Create — and neither snippet
+    contains one. The "tags" mode's hide is `SetCategoryHidden(...)` inside
+    `new Transaction(...)`, and `Transact(` is not a substring of `Transaction(`. The
+    engine's `ExportImage` also transacts with its own TransactionGroup, which the
+    read-only flag never touches (it only gates the script-facing `ExecutionGlobals.Transact`
+    helper). Defaults reproduce the previous behaviour exactly, so gen / model / family are
+    unaffected.
     """
     t0 = time.perf_counter()
     view_name = (view_name or "").strip()
@@ -792,7 +807,9 @@ def export_view_report(
 
     try:
         with single_flight(label):
-            result = execute_repl(code, session_id, source=source)
+            result = execute_repl(code, session_id, source=source,
+                                  execution_mode=execution_mode,
+                                  license_tier=license_tier)
     except RevitBusy as busy:
         record_tool_call("export_view", False, (time.perf_counter() - t0) * 1000,
                          refused_busy=True)
