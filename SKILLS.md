@@ -10,7 +10,7 @@ when the methods are not enough. Deep **modelling** and **family (.rfa)** recipe
 ---
 
 <!-- GENERATED:SHARED-SKILLS:BEGIN -->
-⚠ **GENERATED — do not edit this region.** These nine are the **shared REPL / dynamic-execution set**: they teach the GENERIC engine's own methods, so they are identical in every engine-driving MCP. Authority: `paracore-gen/mcp_core/shared_skills.py`. The full text of each lives in its own `<name>/SKILL.md`, which is generated from the same place.
+⚠ **GENERATED — do not edit this region.** These nine are the **shared REPL / dynamic-execution set**: they teach the GENERIC engine's own methods, so they are identical in every engine-driving MCP. Authority: `paracore/mcp/mcp_core/shared_skills.py` — the shared MCP core, which every MCP IMPORTS instead of copying. The full text of each lives in `paracore/mcp/mcp_core/skills/<name>/SKILL.md`.
 
 ## query-filter
 

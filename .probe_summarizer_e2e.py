@@ -16,6 +16,31 @@ Run:
     cd paracore-gen
     python .probe_summarizer_e2e.py
 """
+
+
+# ── the SHARED MCP CORE (`paracore/mcp`) — put it on sys.path ────────────────
+# ⚠ It is not a per-repo package any more: it lives ONCE in the ENGINE repo and every MCP
+#   imports it. See paracore/mcp/mcp_core/domain.py. Walk up to the sibling checkout.
+import os as _os
+import sys as _sys
+if not getattr(_sys, "frozen", False):
+    _here = _os.path.dirname(_os.path.abspath(__file__))
+    _dir, _core = _here, None
+    for _ in range(6):
+        if _os.path.isfile(_os.path.join(_dir, "paracore", "mcp", "mcp_core", "__init__.py")):
+            _core = _os.path.join(_dir, "paracore", "mcp")
+            break
+        _up = _os.path.dirname(_dir)
+        if _up == _dir:
+            break
+        _dir = _up
+    if _core is None:
+        raise RuntimeError(
+            "Paracore MCP shared core not found: no `paracore/mcp/mcp_core` above "
+            f"{_here}. The core lives in the ENGINE repo, so the repos must be SIBLING "
+            "checkouts under one parent directory."
+        )
+    _sys.path.insert(0, _core)
 import json
 import sys
 

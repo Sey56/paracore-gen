@@ -81,7 +81,40 @@ Write-Host "  Version info: $Version" -ForegroundColor DarkGray
 Write-Host "Compiling mcp_server.py into standalone executable..." -ForegroundColor Yellow
 $IconFile = Join-Path $AgentRoot "icons\$mcpName.ico"
 Push-Location $AgentRoot
-& $BuildPython -m PyInstaller --onefile --name $mcpName --paths . `
+# ── The SHARED MCP CORE — ONE copy, in the ENGINE repo ────────────────────
+# ⚠ It used to be `paracore-gen/mcp_core`, COPIED into this repo (and into three others).
+#   It now lives ONCE at `paracore/mcp/` and every MCP IMPORTS it — so one fix reaches all
+#   five, and there is no copy left to drift. Addressed BY NAME from the repo's parent,
+#   never by a hard-coded directory climb.
+$SharedCore = $env:PARACORE_MCP_CORE
+if (-not $SharedCore) {
+    $SharedCore = Join-Path (Split-Path $AgentRoot -Parent) "paracore\mcp"
+}
+if (-not (Test-Path (Join-Path $SharedCore "mcp_core\__init__.py"))) {
+    Write-Host "BUILD GATE FAILED: the shared MCP core is not at '$SharedCore'." -ForegroundColor Red
+    Write-Host "  Expected <parent>\paracore\mcp\mcp_core. Set PARACORE_MCP_CORE to override." -ForegroundColor Red
+    exit 1
+}
+Write-Host "  Shared core: $SharedCore" -ForegroundColor DarkGray
+
+# ⚠ The core's SKILLS and PROMPTS are bundled as DATA under `mcp_core/…` — exactly where
+#   prompt_assembler and domain.py look for them at runtime. This repo's OWN skills/ and
+#   prompts/ go to the bundle ROOT (`skills/`, `prompts/`), which is where
+#   `bootstrap.domain_root()` points a Domain.
+# ⚠ Added CONDITIONALLY: PyInstaller fails on a missing --add-data source, and paracore-gen
+#   (the generalist) has neither its own skills nor its own prompt overrides.
+$DataArgs = @(
+    "--add-data", "REPL_GUIDE.md;.",
+    "--add-data", "EXTENSION_METHODS.md;.",
+    "--add-data", "SKILLS.md;.",
+    "--add-data", "$SharedCore\mcp_core\skills;mcp_core/skills",
+    "--add-data", "$SharedCore\mcp_core\prompts;mcp_core/prompts"
+)
+foreach ($dirName in @("skills", "prompts")) {
+    if (Test-Path (Join-Path $AgentRoot $dirName)) { $DataArgs += @("--add-data", "$dirName;$dirName") }
+}
+
+& $BuildPython -m PyInstaller --onefile --name $mcpName --paths ".;$SharedCore" `
     --version-file $VersionFile `
     --icon $IconFile `
     --exclude-module logfire `
@@ -94,13 +127,8 @@ Push-Location $AgentRoot
     --hidden-import google.protobuf.symbol_database `
     --hidden-import google.protobuf.internal.builder `
     --hidden-import mcp_core `
-    --hidden-import mcp_core.prompts `
     --copy-metadata fastmcp `
-    --add-data "REPL_GUIDE.md;." `
-    --add-data "EXTENSION_METHODS.md;." `
-    --add-data "SKILLS.md;." `
-    --add-data "mcp_core/skills;mcp_core/skills" `
-    --add-data "mcp_core/prompts;mcp_core/prompts" `
+    @DataArgs `
     mcp_server.py
 
 if ($LASTEXITCODE -ne 0) {
@@ -124,7 +152,7 @@ $ExePath = Join-Path $AgentRoot "dist\$mcpName.exe"
 # returns 0 matches just like absent text. Extract with PyInstaller's own reader.
 Write-Host ''
 Write-Host 'Verifying bundled prompts...' -ForegroundColor Yellow
-$PromptSrc = Join-Path $AgentRoot 'mcp_core\prompts'
+$PromptSrc = Join-Path $SharedCore 'mcp_core\prompts'
 $Expected = @(Get-ChildItem -Path $PromptSrc -Filter *.md -File -ErrorAction SilentlyContinue)
 if ($Expected.Count -eq 0) {
     Write-Host 'BUILD GATE FAILED: no prompt files found in mcp_core/prompts — the' -ForegroundColor Red
