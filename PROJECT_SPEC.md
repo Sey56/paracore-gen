@@ -48,7 +48,7 @@ default. A hard-coded `..\..\..\paracore-gen` climb silently misses when a calle
 |---|---|
 | Shared Python core | `mcp_core/` — `skills/*/SKILL.md`, `prompts/*.md` |
 | Agent skills / prompts (authority) | `mcp_core/skills/`, `mcp_core/prompts/` |
-| Engine API docs (**authority**) | `EXTENSION_METHODS.md`, `REPL_GUIDE.md` |
+| Engine API docs (**GENERATED copies** — authority is `paracore/`) | `EXTENSION_METHODS.md`, `REPL_GUIDE.md` |
 | Build | `build-gen.ps1` → `installers/` |
 
 ## 3. Invariants — this project must not break these
@@ -63,8 +63,9 @@ default. A hard-coded `..\..\..\paracore-gen` climb silently misses when a calle
 - ⚠ **`paracore-gen.spec` is NOT used** — the build is driven by `--add-data` flags. Editing the spec
   is silently discarded. ⚠ It is also **generated**: the build writes it from `--name`, so a stale
   `paracore-mcp.spec` left over from the pre-rename build is dead weight, not a config file.
-- ⚠ `EXTENSION_METHODS.md` and `REPL_GUIDE.md` here are the **authority**; other copies are
-  generated. ⚠ **A generated copy is never edited — the next regeneration discards it.**
+- ⚠ `EXTENSION_METHODS.md` and `REPL_GUIDE.md` here are **GENERATED COPIES**; the authority is
+  **`paracore/`** (moved 2026-10-13 — these docs describe the engine, which lives there).
+  ⚠ **A generated copy is never edited — the next regeneration discards it.**
 - ⚠ **`pytest` rotates and deletes `%TEMP%\pytest-of-<user>`** — a test run *is* a delete.
 
 ## 4. Not here
