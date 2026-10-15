@@ -103,7 +103,18 @@ Write-Host "  Shared core: $SharedCore" -ForegroundColor DarkGray
 #   `bootstrap.domain_root()` points a Domain.
 # ⚠ Added CONDITIONALLY: PyInstaller fails on a missing --add-data source, and paracore-gen
 #   (the generalist) has neither its own skills nor its own prompt overrides.
+# ⚠⚠ `VERSION;.` IS MANDATORY, and it MUST BE HERE — in the `--add-data` list, NOT in the `.spec`.
+#   ⚠⚠ THE `.spec` IS A BUILD OUTPUT, NOT AN INPUT. This script passes `--name` + `--add-data` on
+#   the CLI, so PyInstaller REGENERATES `paracore-gen.spec` and OVERWRITES any edit made to it.
+#   MEASURED 2026-10-13: a `VERSION` entry added to the spec was silently gone after a build
+#   (grep count 0, spec mtime = build time) while the version stayed wrong — the classic
+#   "edited the generated artifact instead of the authority" trap.
+#   ⚠ WHY IT MATTERS: `mcp_core.server.apply_server_version` reads `<domain.root>/VERSION`
+#   (`sys._MEIPASS` when frozen) to set the MCP handshake's `serverInfo.version`. Without the
+#   bundle entry the handshake silently reports the mcp SDK's version — "1.27.2", not "2.0.0".
+#   (Forge differs: `build-forge.ps1` builds FROM its spec, so there the spec IS the input.)
 $DataArgs = @(
+    "--add-data", "VERSION;.",
     "--add-data", "REPL_GUIDE.md;.",
     "--add-data", "EXTENSION_METHODS.md;.",
     "--add-data", "SKILLS.md;.",
