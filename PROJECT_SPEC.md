@@ -46,15 +46,16 @@ default. A hard-coded `..\..\..\paracore-gen` climb silently misses when a calle
 
 | Artifact | Path |
 |---|---|
-| Shared Python core | `mcp_core/` — `skills/*/SKILL.md`, `prompts/*.md` |
-| Agent skills / prompts (authority) | `mcp_core/skills/`, `mcp_core/prompts/` |
+| Shared Python core | ⚠⚠ **NOT in this repo — `paracore/mcp/mcp_core/`** (a SIBLING, imported as a package since 2026-10-13). It provides `tools.py`, `summarizer.py`, `schema_cache.py`, `prompt_assembler.py`, `metrics.py`, `dialog_watcher.py`, the nine shared `skills/*/SKILL.md` and `prompts/*.md`. There is **no** `paracore-gen/mcp_core/` any more |
+| Agent skills / prompts (authority) | ⚠ **`paracore/mcp/mcp_core/skills/` and `.../prompts/`** — ONE copy, shared by every MCP. ⚠ This repo declares **no** domain skills of its own (its catalogue is the shared nine) and has **no** local `skills/` or `prompts/` directory |
 | Engine API docs (**GENERATED copies** — authority is `paracore/`) | `EXTENSION_METHODS.md`, `REPL_GUIDE.md` |
 | Build | `build-gen.ps1` → `installers/` |
 
 ## 3. Invariants — this project must not break these
 
 - ⚠ **The MCP exe is FROZEN. A source edit is INERT.** `mcp_core/skills/*.md` and
-  `mcp_core/prompts/*.md` are bundled **inside** the exe — a change reaches nothing until you
+  `mcp_core/prompts/*.md` — which live ONCE in `paracore/mcp/mcp_core/` — are bundled **inside**
+  the exe, so an edit there reaches nothing until you
   **rebuild → install → restart the client**.
 - ⚠ **Never `grep` the exe's bytes to check content.** The archive is compressed, so present text
   returns 0 exactly like absent text.
