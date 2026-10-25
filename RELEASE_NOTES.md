@@ -1,36 +1,23 @@
-# Paracore-Gen v2.0.0
+## Paracore-Gen v2.1.0
 
-The generalist Revit MCP server — previously released as **Paracore MCP v4.7.0**. Standalone
-installer; not bundled with the add-in.
+Full notes: [Release-Notes-2.1.0.md](Release-Notes-2.1.0.md) · Previous: [v2.0.0](https://github.com/Sey56/paracore-gen/releases/tag/v2.0.0)
 
-## Highlights
+### Built on the shared core
 
-- **Renamed to Paracore-Gen.** The product was `Paracore-MCP`, briefly `Paracore-Core`; the remote
-  repository was renamed to match. The name is on every surface — package, build script, installer
-  and icon.
+- **8,393 lines lighter** — the eight REPL tools, ten prompt sections, nine skills, the domain registry and the gRPC client are now imported from `paracore/mcp/` instead of carried as a copy
+- **The drift is gone** — the five copies had already diverged; there is one text now
 
-- **Three new tools**
+### Tools
 
-  | Tool | What it is for |
-  |---|---|
-  | `get_context` | The current project, active view, selection and levels. Call it right after `ping`, so "the walls" or "this level" is not a guess. Read-only, no arguments. |
-  | `pick_object` | Ask the user to click an element and get it back. ⚠ It **blocks** until they pick or press Escape — tell them to click in Revit. |
-  | `export_view` | Render a Revit view to an image so the agent can *see* the model. `annotations`: `model` (default), `tags`, or `all`. |
+- **`export_view`** takes optional `execution_mode` (default `read_write`) and `license_tier`, so a read-only caller can declare its own posture
+- **No tool was added or removed**
 
-- **A resident dialog watcher.** Revit reports most failures as a modal dialog on its UI thread, so
-  a call that provokes one never returns. A daemon thread now answers the dialog from **outside**,
-  pressing the button a human would. It never suppresses a failure and never touches a transaction.
-  Kill switch: `PARACORE_WATCH_DIALOGS=0`.
+### Plumbing
 
-- **`ping` now diagnoses three states.** gRPC alone cannot tell "Revit is closed" from "the server
-  is toggled off" — both close the port. The reply now says which one you are in.
+- The three REPL IntelliSense client calls (completion, diagnostics, hover) are in `grpc_client.py`
+- `VERSION` is bundled from the build CLI, not the `.spec`; proto stubs regenerated from `protos/corescript.proto`
 
-- **Robustness.** gRPC deadlines on `ExecuteRepl`; `single_flight(...)` allows exactly one in-flight
-  Revit execution and **refuses, never queues**, a second — "REVIT IS BUSY — do not retry".
+### Requirements
 
-- **Skills and reference are generated from the shared authority**, so `SKILLS.md` and
-  `EXTENSION_METHODS.md` cannot drift from the engine.
-
-## Requirements
-
-**Paracore Add-in v4.8.0** installed and running in Revit — the two are released together.
+- **Paracore Add-in v4.8.1** — released together
+- ⚠ The consent-gate fix needs both halves: Gen 2.1.0 against add-in 4.8.0 still auto-approves the dialog, because 4.8.0's offers `OK`
