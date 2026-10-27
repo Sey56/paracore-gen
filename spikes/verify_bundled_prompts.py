@@ -4,12 +4,17 @@ WHY
     `prompt_assembler.py` loads `mcp_core/prompts/*.md` at RUNTIME from
     `_PROMPTS_DIR = <dir of prompt_assembler.py>/prompts`. If that directory is
     absent from the PyInstaller bundle, `_read()` raises FileNotFoundError and
-    returns the string `"[Prompt file not found: X]"` — so `build_prompt()` emits a
-    system prompt consisting entirely of placeholders. The build reports SUCCESS.
+    returns the string `"[Prompt file not found: X]"` — so `get_globals()` serves a
+    placeholder instead of the globals reference. The build reports SUCCESS.
 
-    The result: the agent receives no Paracore API reference whatsoever, and
+    The result: the agent receives no Paracore globals reference whatsoever, and
     nothing anywhere raises. Source runs and `pip` runs are unaffected, so the bug
     is invisible except from the frozen exe. This script is the gate for that.
+
+⚠ WHAT IS LEFT (2026-10-27). The directory used to hold ten sections feeding
+  `prompt_assembler.build_prompt()`, which nothing called; eight were deleted. The gate
+  still derives `expected` from the SOURCE DIR, so it adapts by itself — but it must
+  never pass on an empty directory, which is why the empty case FAILS below.
 
 WHY NOT A RAW BYTE SEARCH
     The PyInstaller PKG is compressed, so a `grep` for text that IS bundled returns
@@ -70,8 +75,16 @@ def main() -> int:
     if entry is None:
         print(f"  could not locate {probe} for a content check")
         return 1
-    data = reader.extract(entry).decode("utf-8", errors="replace")
-    on_disk = open(os.path.join(src_dir, probe), encoding="utf-8").read()
+    data = reader.extract(entry)
+    with open(os.path.join(src_dir, probe), "rb") as f:
+        on_disk = f.read()
+    # ⚠⚠ COMPARE BYTES, NOT TEXT (2026-10-27). `reader.extract` returns the archived
+    #   bytes verbatim; a text-mode read silently collapses CRLF to LF (universal
+    #   newlines). Measured on `globals.md`: 3,873 bytes on disk with 83 CRLF pairs,
+    #   read back as 3,650 characters — so the gate reported "CONTENT MISMATCH …
+    #   exe=3733B disk=3650B (stale bundle)" on a bundle that was perfectly correct,
+    #   and FAILED THE BUILD. A gate that cannot tell "stale" from "CRLF" is a gate
+    #   with a failure mode of its own.
     if data != on_disk:
         print(f"  CONTENT MISMATCH in {probe}: "
               f"exe={len(data)}B disk={len(on_disk)}B (stale bundle)")

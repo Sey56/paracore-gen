@@ -6,8 +6,11 @@ resources, the dialog watcher, the metrics, the C# lint — is the SHARED CORE i
 `paracore/mcp/mcp_core/`. Read `paracore/mcp/mcp_core/domain.py` first: it explains the
 split, and why the skills are served as TOOLS rather than resources.
 
-⚠ paracore-gen has NO domain skills: it is the generalist, so the nine shared method
-skills ARE its whole set. That is the difference between this file and paracore-model's.
+⚠ paracore-gen has NO domain skills of its own: it is the generalist, so the SHARED method
+skills ARE its whole set — MINUS `create-geometry`. Modelling belongs to `paracore-model`;
+this server generates REPL on the fly against the raw Revit API, LINQ and the DSL, and
+`GEN_INTRO` states which to prefer. That is the difference between this file and
+paracore-model's.
 """
 
 # ── Locate the SHARED MCP CORE — the one in the engine repo (`paracore/mcp`) ──────
@@ -58,17 +61,38 @@ GEN_INTRO = """THIS SERVER IS THE GENERALIST — you write and run REPL scripts 
   task, not one specialism. Prefer the Paracore extension methods, but the raw
   Revit API, LINQ and .NET are all in scope when the methods are not enough.
   A real building is built PER LEVEL: levels → slabs → walls → rooms — never
-  via massing (a Form cannot become a wall, floor or room). For deep modelling
-  or family (.rfa) recipes, the paracore-model and paracore-family MCPs are the
-  specialists.
+  via massing (a Form cannot become a wall, floor or room). `list_skills` is the
+  authoritative list of what THIS server teaches: if the recipe you want is not
+  among them, it is not here — say so instead of guessing a skill name.
   After every build, re-derive counts and read Doc.GetWarnings()."""
+
+# ── The skill set: the shared method skills, MINUS modelling ──────────────────
+# ⚠⚠ `create-geometry` is NOT here (operator, 2026-10-27). **`paracore-model` is what
+#   models.** This server's job is to generate REPL on the fly, with full access to the raw
+#   Revit API, LINQ and the Paracore DSL — `GEN_INTRO` states which to prefer. A modelling
+#   curriculum in the generalist both duplicates paracore-model and reads as a claim that
+#   this server specialises in modelling.
+#   The other eight ARE the DSL vocabulary the generalist writes in, so they stay.
+# ⚠ This filters the CATALOGUE only. The file still lives in the shared core, for the
+#   domains that do model — see `Domain.shared_skills` in mcp_core/domain.py.
+GEN_SHARED_SKILLS = (
+    "query-filter",
+    "aggregate-group",
+    "parameter-access",
+    "write-modify",
+    "display-visualize",
+    "discovery-debug",
+    "identity-orientation",
+    "materials-units",
+)
 
 DOMAIN = Domain(
     name="Paracore-Gen",
     slug="gen",
     intro=GEN_INTRO,
     root=REPO_ROOT,
-    # No domain skills: the generalist serves the nine shared method skills and nothing else.
+    # No domain skills: the generalist serves the eight non-modelling shared method skills.
+    shared_skills=GEN_SHARED_SKILLS,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -82,7 +106,17 @@ setup_logging(DOMAIN, log_dir)
 logger = logging.getLogger("paracore-mcp")
 
 # ── The server: shared core + this domain ─────────────────────────────────────
-mcp = create_server(DOMAIN)
+# ⚠⚠ NO `pick_object` HERE (2026-10-27). This server is REPL scripts only: a pick is a
+#   GALLERY concern, where the target is declared as a typed property in the script's
+#   `Params` class (`[Select(SelectionType.Element)] public Wall? TargetWall`) and the
+#   gallery UI drives the selection. Nothing in a REPL script declares such a property, so
+#   a modal pick would block Revit's UI thread waiting for a click that the script has no
+#   way to ask for in advance.
+#   What the REPL path uses instead, and it is strictly better for an agent:
+#     • the user selects in Revit, then asks — the agent reads `Selection` (a List<Element>)
+#     • or the agent addresses elements by id, which it already has from any query
+#   `pick_object` stays registered for servers that do want it; only this domain omits it.
+mcp = create_server(DOMAIN, omit_common=("pick_object",))
 
 
 if __name__ == "__main__":

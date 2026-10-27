@@ -229,3 +229,55 @@ class TestProductionWireShape:
         assert t, "the real entry point must produce the aggregate"
         for col in ("WallPlaster_m2", "Skirting_m", "Screed_m3"):
             assert col in t
+
+
+# ── E. NUMBER RENDERING — the noise, and the total that must agree ────────
+# ⚠ Found by the pre-release review (round 5): a GetNum column of nine identical
+#   3 m walls rendered as `3` on the first row and `3.0000000000000004` on the other
+#   eight. The number was right; the RENDERING made one wall look different from its
+#   eight neighbours. The same `%g` fix also has to keep a genuinely precise value.
+class TestNumberRendering:
+    def _cell(self, out, needle):
+        for line in out.splitlines():
+            if needle in line:
+                return line
+        return ""
+
+    def test_binary_float_noise_is_rendered_away(self):
+        payload = {"structuredOutput": [{"type": "table", "title": "T", "data": [
+            {"Id": 1, "H": 3.0000000000000004},
+            {"Id": 2, "H": 3},
+        ]}]}
+        out = summarize(payload)
+        assert "3.0000000000000004" not in out
+        # Both rows must read the SAME — that is the whole point.
+        assert "| 1 | 3 |" in out
+        assert "| 2 | 3 |" in out
+
+    def test_a_precise_value_is_not_rounded_away(self):
+        payload = {"structuredOutput": [{"type": "table", "title": "T", "data": [
+            {"Id": 1, "Area": 14.5234567891},
+        ]}]}
+        assert "14.5234567891" in summarize(payload)
+
+    def test_int_and_float_of_the_same_value_render_alike(self):
+        payload = {"structuredOutput": [{"type": "table", "title": "T", "data": [
+            {"Id": 1, "L": 2},
+            {"Id": 2, "L": 2.0},
+        ]}]}
+        out = summarize(payload)
+        assert "| 1 | 2 |" in out and "| 2 | 2 |" in out
+
+    def test_totals_agree_with_the_rows_they_summarise(self):
+        # 55 x 0.1234 = 6.787. A `%.2f` total printed 6.79 — a number the caller cannot
+        # reconcile with the column above it.
+        rows = [{"Room": f"R{i}", "Area_m2": "0.1234"} for i in range(55)]
+        out = summarize({"structuredOutput": [{"type": "table", "title": "T", "data": rows}]})
+        assert "Totals (all 55 rows)" in out
+        assert "Area_m2: 6.787" in totals_line(out)
+
+    def test_nan_and_inf_are_still_reported_verbatim(self):
+        payload = {"structuredOutput": [{"type": "table", "title": "T", "data": [
+            {"Id": 1, "H": float("nan")},
+        ]}]}
+        assert "nan" in summarize(payload)

@@ -29,14 +29,19 @@ import time
 EXE = sys.argv[1] if len(sys.argv) > 1 else \
     r"C:\Users\seyou\AppData\Roaming\paracore-data\mcp-servers\paracore-gen.exe"
 
-EXPECT_TOOLS = ["ping", "get_context", "pick_object", "export_view",
+EXPECT_TOOLS = ["ping", "get_context", "export_view",
                 "_explore_revit_data", "_execute_dynamic_query",
-                "_search_schema", "_read_extension_methods"]
+                "_search_schema", "_read_extension_methods",
+                "list_skills", "read_skill", "get_globals"]
+# ⚠ `pick_object` is deliberately ABSENT (2026-10-27): a pick is a gallery `Params` concern,
+#   and this server is REPL scripts only. See mcp_server.py.
 
-# The nine generalist method skills — every one must be served.
+# The eight non-modelling shared method skills — every one must be served.
+# ⚠ `create-geometry` was REMOVED 2026-10-27 (operator ruling): **paracore-model is what
+#   models.** This server generates REPL on the fly; it carries no modelling curriculum.
 METHOD_SKILLS = [
     "query-filter", "aggregate-group", "parameter-access", "write-modify",
-    "display-visualize", "discovery-debug", "create-geometry",
+    "display-visualize", "discovery-debug",
     "identity-orientation", "materials-units",
 ]
 
@@ -44,7 +49,6 @@ METHOD_SKILLS = [
 SKILLS_TO_READ = {
     "skill://query-filter/SKILL.md": ["GetElements", "WhereParam"],
     "skill://write-modify/SKILL.md": ["SetVal", "Transact"],
-    "skill://create-geometry/SKILL.md": ["Wall.Create", "Transact"],
     "skill://display-visualize/SKILL.md": ["export_view(", "annotations"],
     "skill://materials-units/SKILL.md": ["InputUnit", "OutputUnit"],
 }

@@ -99,34 +99,61 @@ try:
 except Exception as e:
     print(f"  (could not list tools: {type(e).__name__}: {e})")
 check("export_view registered", "export_view" in tool_names, f"tools={tool_names}")
-check("7 original tools still registered",
+# ⚠ RETARGETED 2026-10-27. This used to assert `pick_object` was present and stop at seven
+#   tools — the state before the skill tools were added and before this domain opted out of
+#   picking. `pick_object` is now DELIBERATELY absent here (a pick is a gallery `Params`
+#   concern; see mcp_server.py), so asserting its presence was asserting the defect.
+check("the ten REPL tools are registered",
       all(n in tool_names for n in
-          ["ping", "get_context", "pick_object", "_explore_revit_data",
-           "_execute_dynamic_query", "_search_schema", "_read_extension_methods"]),
+          ["ping", "get_context", "export_view", "_explore_revit_data",
+           "_execute_dynamic_query", "_search_schema", "_read_extension_methods",
+           "list_skills", "read_skill", "get_globals"]),
       f"tools={tool_names}")
+check("pick_object is deliberately absent from this domain",
+      "pick_object" not in tool_names, f"tools={tool_names}")
 print(f"  tools now: {sorted(tool_names)}")
 
-print("\n== 5. exactly the nine generalist method skills are registered and load ==")
+print("\n== 5. the skill set is the shared methods MINUS modelling ==")
+# ⚠⚠ RETARGETED 2026-10-27 (operator ruling): **`paracore-model` is what models.** This server
+#   generates REPL on the fly against the raw Revit API, LINQ and the DSL — it does not carry a
+#   modelling curriculum. So `create-geometry` is filtered OUT of gen's catalogue, and the check
+#   is not "nine are registered" any more; it is "exactly eight, and modelling is not one".
 METHOD = ["query-filter", "aggregate-group", "parameter-access", "write-modify",
-          "display-visualize", "discovery-debug", "create-geometry",
+          "display-visualize", "discovery-debug",
           "identity-orientation", "materials-units"]
 SPECIALIST = ["project-modeling", "annotations-dimensions",
               "family-authoring", "massing-forms"]
-check("exactly the nine method skills are registered",
-      sorted(S._SKILL_DESCRIPTIONS) == sorted(METHOD),
-      f"{sorted(S._SKILL_DESCRIPTIONS)}")
+# ⚠ RETARGETED 2026-10-27: `_SKILL_DESCRIPTIONS` / `_SKILL_CACHE` were module globals of the
+#   OLD per-repo mcp_server.py. The registry now lives once in `mcp_core.shared_skills`, and
+#   skill text is loaded through `mcp_core.domain.load_skill_text`. Reading the old names was
+#   an AttributeError, not a check — the gate had been dead, not failing.
+from mcp_core.domain import load_skill_text, skill_catalogue  # noqa: E402
+from mcp_core.shared_skills import SHARED_SKILL_DESCRIPTIONS  # noqa: E402
+
+_served = [s.name for s in skill_catalogue(S.DOMAIN)]
+check("exactly eight skills are offered", sorted(_served) == sorted(METHOD), f"{_served}")
+check("create-geometry is NOT offered (modelling is paracore-model's job)",
+      "create-geometry" not in _served, f"{_served}")
+check("read_skill('create-geometry') is refused, not served",
+      not load_skill_text(S.DOMAIN, "create-geometry"))
 for _name in METHOD:
-    _body = S._SKILL_CACHE.get(_name, "")
+    _body = load_skill_text(S.DOMAIN, _name) or ""
     check(f"{_name} loads (not 'Skill not found')",
           "Skill not found" not in _body and len(_body) > 500, f"{len(_body)} chars")
 for _name in SPECIALIST:
-    check(f"specialist skill GONE: {_name}", _name not in S._SKILL_DESCRIPTIONS)
+    check(f"specialist skill GONE: {_name}", _name not in SHARED_SKILL_DESCRIPTIONS)
 
-print("\n== 6. routing points modelling/family at the sibling MCPs ==")
-cg = S._SKILL_CACHE.get("create-geometry", "")
-check("create-geometry routes a building to paracore-model", "paracore-model" in cg)
-check("create-geometry routes family work to paracore-family", "paracore-family" in cg)
-dv = S._SKILL_CACHE.get("display-visualize", "")
+print("\n== 6. no served skill or instruction routes to a server this repo does not ship ==")
+# ⚠ RETARGETED 2026-10-27 (fifth pre-release review). These checks used to ASSERT a dead
+#   pointer ("create-geometry routes a building to paracore-model"). `paracore-model` /
+#   `paracore-family` are sibling products, not something a reader of THIS server can call.
+#   The pointer is gone; the check is GENERALISED over every served skill rather than
+#   inverted on one file — a scan for the class of defect, not the string found this time.
+_FOREIGN = ("paracore-model", "paracore-family")
+for _name in _served:
+    _text = (load_skill_text(S.DOMAIN, _name) or "").lower()
+    check(f"{_name} names no foreign server", not any(f in _text for f in _FOREIGN))
+dv = load_skill_text(S.DOMAIN, "display-visualize") or ""
 check("display-visualize documents export_view", "export_view(" in dv)
 check("display-visualize keeps ExportImage", "ExportImage(" in dv)
 
@@ -134,8 +161,9 @@ print("\n== 7. the server instructions carry the generalist identity ==")
 instr = S.mcp.instructions or ""
 check("instructions say this server is the GENERALIST", "GENERALIST" in instr)
 check("instructions allow the raw Revit API / LINQ", "LINQ" in instr)
-check("instructions route to paracore-model / paracore-family",
-      "paracore-model" in instr and "paracore-family" in instr)
+check("instructions name no foreign server",
+      not any(f in instr for f in _FOREIGN))
+check("instructions defer to list_skills for scope", "list_skills" in instr)
 
 print(f"\n{'=' * 60}")
 print(f"{checks - len(failures)}/{checks} checks passed")

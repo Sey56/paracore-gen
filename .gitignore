@@ -48,6 +48,10 @@ target/
 .kilo/
 .workbuddy-ai/
 *.log
+# Dev-run artefacts: a non-frozen server writes its log AND its metrics into the repo
+# root, so running a probe (or the server from source) dirtied the tree with a metrics
+# file that no build ever reads. `*.log` already covered the log half.
+paracore_*_metrics.json
 
 # spikes/ holds the MCP's PROOF INSTRUMENTS, not scratch. build-gen.ps1 step 4b
 # runs verify_bundled_prompts.py, and the paracore-gen-build-verify skill names

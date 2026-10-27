@@ -117,7 +117,6 @@ $DataArgs = @(
     "--add-data", "VERSION;.",
     "--add-data", "REPL_GUIDE.md;.",
     "--add-data", "EXTENSION_METHODS.md;.",
-    "--add-data", "SKILLS.md;.",
     "--add-data", "$SharedCore\mcp_core\skills;mcp_core/skills",
     "--add-data", "$SharedCore\mcp_core\prompts;mcp_core/prompts"
 )
@@ -178,7 +177,38 @@ if (Test-Path $Verify) {
         exit 1
     }
 } else {
-    Write-Host "WARNING: $Verify missing; prompt bundling NOT verified." -ForegroundColor DarkYellow
+    # ⚠ A gate that silently SKIPS is not a gate (same reason as the skills gate below).
+    Write-Host "BUILD GATE FAILED: $Verify is missing; prompt bundling cannot be verified." -ForegroundColor Red
+    exit 1
+}
+
+Write-Host ''
+Write-Host 'Verifying bundled skills...' -ForegroundColor Yellow
+# ⚠⚠ WHY THIS GATE EXISTS (2026-10-27): `read_skill` fails POLITELY. With no skills in
+#   the bundle it answers "No skill named 'query-filter'. Available: query-filter,
+#   aggregate-group, ..." — a list of the very skills it cannot open. Nothing raises,
+#   the build reports success, and a source run is unaffected, so the exe is the only
+#   place the fault is visible. Same failure shape as the prompt gate above.
+#   Measured on the shipped exe: all 9 present, so this gate PASSES today; it is here
+#   so the next --add-data regression cannot ship silently.
+$SkillSrc = Join-Path $SharedCore 'mcp_core\skills'
+$ExpectedSkills = @(Get-ChildItem -Path $SkillSrc -Directory -ErrorAction SilentlyContinue |
+    Where-Object { Test-Path (Join-Path $_.FullName 'SKILL.md') })
+if ($ExpectedSkills.Count -eq 0) {
+    Write-Host 'BUILD GATE FAILED: no <skill>/SKILL.md found in mcp_core/skills — the' -ForegroundColor Red
+    Write-Host 'gate has lost its subject and cannot verify anything.' -ForegroundColor Red
+    exit 1
+}
+$VerifySkills = Join-Path $AgentRoot 'spikes\verify_bundled_skills.py'
+if (-not (Test-Path $VerifySkills)) {
+    # ⚠ A gate that silently SKIPS is not a gate — this is a hard failure, not a warning.
+    Write-Host "BUILD GATE FAILED: $VerifySkills is missing; skill bundling cannot be verified." -ForegroundColor Red
+    exit 1
+}
+& $BuildPython $VerifySkills $ExePath $SkillSrc
+if ($LASTEXITCODE -ne 0) {
+    Write-Host 'BUILD GATE FAILED: skills are not correctly bundled.' -ForegroundColor Red
+    exit 1
 }
 
 Write-Host ''
