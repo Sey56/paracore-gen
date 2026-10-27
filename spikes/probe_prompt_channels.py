@@ -1,11 +1,13 @@
 """Which channels actually carry instruction text to the model, and what is lost?
 
 WHY THIS EXISTS
-    `mcp_core/prompt_assembler.build_prompt()` assembles ten `prompts/*.md` files into
-    one 36 K string — and NOTHING CALLS IT. Only `globals.md` (as the `paracore://globals`
-    resource) and `catalog.md` (as `build_extension_reference`'s fallback) are reachable.
-    So the question "if 8 of 10 are inert, what IS the MCP using?" needs a measurement,
-    not an assurance.
+    ⚠ **This is the probe that found the dead prompt assembler, kept as the record of it.** It
+    used to open by noting that `mcp_core/prompt_assembler.build_prompt()` assembled ten
+    `prompts/*.md` files into one 36 K string *and nothing called it* — only `globals.md` (the
+    `paracore://globals` resource) and `catalog.md` (`build_extension_reference`'s fallback) were
+    reachable. That measurement is what justified deleting the other eight files on 2026-10-27;
+    `build_prompt()` no longer exists, so the "inert channel" it compared against is gone too.
+    What still runs here is the LIVE half — the channel inventory, which stays useful.
 
 WHAT IT MEASURES
     1. The LIVE channels, with sizes:
@@ -96,8 +98,11 @@ def main() -> int:
     print("=" * 78)
     for label, text in channels.items():
         print(f"  {label:<16} {len(text):>7,} chars")
+    # ⚠ This line used to print `pa.build_prompt(DOMAIN)` for scale against the inert channel.
+    #   That function was deleted 2026-10-27 along with the eight dead prompt files it assembled,
+    #   so the comparison no longer has a right-hand side — the call would now raise.
     print(f"  {'TOTAL':<16} {sum(len(t) for t in channels.values()):>7,} chars")
-    print(f"\n  (for scale) build_prompt() — the INERT channel: {len(pa.build_prompt(mcp_server.DOMAIN)):,} chars")
+    print("  (the inert channel this used to be measured against no longer exists)")
 
     print()
     print("=" * 78)

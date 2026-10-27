@@ -154,7 +154,7 @@ $ExePath = Join-Path $AgentRoot "dist\$mcpName.exe"
 # ── 4b. GATE: every prompt the assembler reads at runtime must be IN the exe ──
 # prompt_assembler.py loads mcp_core/prompts/*.md at RUNTIME. When that directory
 # is absent from the bundle, _read() returns "[Prompt file not found: X]" for every
-# section, so build_prompt() ships a system prompt of pure placeholders while the
+# section, so `get_section()` / `build_extension_reference()` return pure placeholders while the
 # build reports success — the agent then has no API reference and nothing errors.
 # A gate must not silently skip (rule 3) and an empty scan must FAIL.
 #

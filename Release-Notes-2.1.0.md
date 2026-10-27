@@ -1,5 +1,8 @@
 # Paracore-Gen v2.1.0
 
+> **STATUS: HISTORICAL** — a plan / research / audit record. It describes what was being considered at the time, **not what is true now**. For current behaviour read the owning repo's `PROJECT_SPEC.md` or the master spec. (Marked 2026-10-27.)
+
+
 The generalist Revit MCP server, now built on the **shared MCP core**. Standalone installer; not
 bundled with the add-in. Ships with **Paracore Add-in v4.8.1**.
 
