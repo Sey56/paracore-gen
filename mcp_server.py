@@ -64,7 +64,22 @@ GEN_INTRO = """THIS SERVER IS THE GENERALIST — you write and run REPL scripts 
   via massing (a Form cannot become a wall, floor or room). `list_skills` is the
   authoritative list of what THIS server teaches: if the recipe you want is not
   among them, it is not here — say so instead of guessing a skill name.
-  After every build, re-derive counts and read Doc.GetWarnings()."""
+  After every build, re-derive counts and read Doc.GetWarnings().
+
+PICKING — THIS SERVER HAS NO `pick_object` TOOL. There is nothing here that can
+  ask the user to click. `Pick()` still exists as a script global, and if you use it:
+    • SAY SO IN CHAT FIRST — one line naming what you want clicked and why. The call
+      holds Revit's UI thread until the user acts, and NOTHING you print reaches the
+      chat until it returns. Measured 2026-10-28 on the operator's screen: during a
+      bare `Pick()` the only thing on display was the add-in's generic "Running …",
+      which appears for every call — the user had no way to tell a pick from a count.
+    • Pass your own sentence: `Pick("click the short wall by the stair")` puts it in
+      Revit's status bar for the duration. With no argument the engine supplies a
+      generic one. Esc cancels (Revit raises OperationCanceledException).
+    • PREFER NOT TO. If the user has already selected what they mean, read
+      `Selection` (a List<Element>) or `get_context` — no interruption at all. If you
+      know the id from a query, use the id. A pick is for the case where the element
+      cannot be named: "the short wall by the stair"."""
 
 # ── The skill set: the shared method skills, MINUS modelling ──────────────────
 # ⚠⚠ `create-geometry` is NOT here (operator, 2026-10-27). **`paracore-model` is what
