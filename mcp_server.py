@@ -64,22 +64,7 @@ GEN_INTRO = """THIS SERVER IS THE GENERALIST — you write and run REPL scripts 
   via massing (a Form cannot become a wall, floor or room). `list_skills` is the
   authoritative list of what THIS server teaches: if the recipe you want is not
   among them, it is not here — say so instead of guessing a skill name.
-  After every build, re-derive counts and read Doc.GetWarnings().
-
-PICKING — THIS SERVER HAS NO `pick_object` TOOL. There is nothing here that can
-  ask the user to click. `Pick()` still exists as a script global, and if you use it:
-    • SAY SO IN CHAT FIRST — one line naming what you want clicked and why. The call
-      holds Revit's UI thread until the user acts, and NOTHING you print reaches the
-      chat until it returns. Measured 2026-10-28 on the operator's screen: during a
-      bare `Pick()` the only thing on display was the add-in's generic "Running …",
-      which appears for every call — the user had no way to tell a pick from a count.
-    • Pass your own sentence: `Pick("click the short wall by the stair")` puts it in
-      Revit's status bar for the duration. With no argument the engine supplies a
-      generic one. Esc cancels (Revit raises OperationCanceledException).
-    • PREFER NOT TO. If the user has already selected what they mean, read
-      `Selection` (a List<Element>) or `get_context` — no interruption at all. If you
-      know the id from a query, use the id. A pick is for the case where the element
-      cannot be named: "the short wall by the stair"."""
+  After every build, re-derive counts and read Doc.GetWarnings()."""
 
 # ── The skill set: the shared method skills, MINUS modelling ──────────────────
 # ⚠⚠ `create-geometry` is NOT here (operator, 2026-10-27). **`paracore-model` is what
@@ -121,17 +106,13 @@ setup_logging(DOMAIN, log_dir)
 logger = logging.getLogger("paracore-mcp")
 
 # ── The server: shared core + this domain ─────────────────────────────────────
-# ⚠⚠ NO `pick_object` HERE (2026-10-27). This server is REPL scripts only: a pick is a
-#   GALLERY concern, where the target is declared as a typed property in the script's
-#   `Params` class (`[Select(SelectionType.Element)] public Wall? TargetWall`) and the
-#   gallery UI drives the selection. Nothing in a REPL script declares such a property, so
-#   a modal pick would block Revit's UI thread waiting for a click that the script has no
-#   way to ask for in advance.
-#   What the REPL path uses instead, and it is strictly better for an agent:
-#     • the user selects in Revit, then asks — the agent reads `Selection` (a List<Element>)
-#     • or the agent addresses elements by id, which it already has from any query
-#   `pick_object` stays registered for servers that do want it; only this domain omits it.
-mcp = create_server(DOMAIN, omit_common=("pick_object",))
+# ⚠ `pick_object` no longer exists in ANY domain (operator ruling, 2026-10-28): it was
+#   removed from the shared registry, not omitted here. A pick is a GALLERY concern — the
+#   target is a typed property in the script's `Params` class
+#   (`[Select(SelectionType.Element)] public Wall? TargetWall`) and the gallery UI drives
+#   the selection. That is a human clicking a control in a UI that OWNS the control; an MCP
+#   agent has no such surface, so `omit_common` has nothing to omit and is not passed.
+mcp = create_server(DOMAIN)
 
 
 if __name__ == "__main__":
