@@ -33,8 +33,10 @@ EXPECT_TOOLS = ["ping", "get_context", "export_view",
                 "_explore_revit_data", "_execute_dynamic_query",
                 "_search_schema", "_read_extension_methods",
                 "list_skills", "read_skill", "get_globals"]
-# ⚠ `pick_object` is deliberately ABSENT (2026-10-27): a pick is a gallery `Params` concern,
-#   and this server is REPL scripts only. See mcp_server.py.
+# ⚠ `pick_object` is ABSENT — and now absent from EVERY domain (2026-10-28 operator ruling,
+#   RETIRED.md R11). It was first dropped here on 2026-10-27 as "a gallery `Params` concern", but
+#   the real reason is general: an agent has no way to tell the operator a pick is pending, so the
+#   call blocks silently. See COMMON_RULES in mcp_core/server.py.
 
 # The eight non-modelling shared method skills — every one must be served.
 # ⚠ `create-geometry` was REMOVED 2026-10-27 (operator ruling): **paracore-model is what

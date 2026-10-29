@@ -32,11 +32,14 @@ def hdr(name):
 
 
 def case_tools():
-    hdr("registered tool list (pick_object must be ABSENT)")
+    hdr("registered tool list (pick_object must be ABSENT — RETIRED.md R11)")
     names = sorted(mcp_server.mcp._tool_manager._tools.keys())
     for n in names:
         print("  -", n)
-    print("\npick_object present:", "pick_object" in names)
+    # ⚠ A printed `False` is not a check — nobody diffs it against a remembered expectation.
+    #   Say the verdict out loud so this line cannot be read as passing when it is not.
+    gone = "pick_object" not in names
+    print("\npick_object absent:", "PASS" if gone else "FAIL <-- IT IS BACK")
     print("tool count:", len(names))
 
 
