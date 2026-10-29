@@ -99,17 +99,17 @@ try:
 except Exception as e:
     print(f"  (could not list tools: {type(e).__name__}: {e})")
 check("export_view registered", "export_view" in tool_names, f"tools={tool_names}")
-# ⚠ RETARGETED 2026-10-27. This used to assert `pick_object` was present and stop at seven
-#   tools — the state before the skill tools were added and before this domain opted out of
-#   picking. `pick_object` is now DELIBERATELY absent here (a pick is a gallery `Params`
-#   concern; see mcp_server.py), so asserting its presence was asserting the defect.
+# ⚠ RETARGETED 2026-10-27, reason superseded 2026-10-28. This used to assert `pick_object` was
+#   present and stop at seven tools. It was first dropped here as "a gallery `Params` concern";
+#   the ruling of 2026-10-28 is broader — the tool is retired from EVERY domain (RETIRED.md R11)
+#   because an agent cannot signal a pending pick. Asserting its presence asserted the defect.
 check("the ten REPL tools are registered",
       all(n in tool_names for n in
           ["ping", "get_context", "export_view", "_explore_revit_data",
            "_execute_dynamic_query", "_search_schema", "_read_extension_methods",
            "list_skills", "read_skill", "get_globals"]),
       f"tools={tool_names}")
-check("pick_object is deliberately absent from this domain",
+check("pick_object is absent from this domain (RETIRED.md R11)",
       "pick_object" not in tool_names, f"tools={tool_names}")
 print(f"  tools now: {sorted(tool_names)}")
 
