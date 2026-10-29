@@ -1,40 +1,55 @@
-## Paracore-Gen v2.1.0
+## Paracore-Gen v2.1.1
 
-Full notes: [Release-Notes-2.1.0.md](Release-Notes-2.1.0.md) · Previous: [v2.0.0](https://github.com/Sey56/paracore-gen/releases/tag/v2.0.0)
+Full notes: [Release-Notes-2.1.1.md](Release-Notes-2.1.1.md) · Previous: [v2.1.0](https://github.com/Sey56/paracore-gen/releases/tag/v2.1.0) · [v2.0.0](https://github.com/Sey56/paracore-gen/releases/tag/v2.0.0)
 
-### Built on the shared core
+Install with **Paracore Add-in v4.8.2** — released together.
 
-- **8,393 lines lighter** — the eight REPL tools, ten prompt sections, nine skills, the domain registry and the gRPC client are now imported from `paracore/mcp/` instead of carried as a copy
-- **The drift is gone** — the five copies had already diverged; there is one text now
+> **Since the last published release (v2.0.0).** v2.1.0 was tagged and held back; 2.1.1 supersedes it
+> and contains everything it had — the shared core (8,393 lines that were five copies now live once),
+> the `cap_exempt` table fix, the schema example that named a parameter walls do not have, the dead
+> `build_prompt()` system prompt deleted, and the reflection-entry-point refusals. This note covers
+> what 2.1.1 adds on top.
 
-### Tools
+### It no longer teaches modelling
 
-- **`export_view`** takes optional `execution_mode` (default `read_write`) and `license_tier`, so a read-only caller can declare its own posture
-- **`pick_object` removed** from this server's surface (round 4) — it is a gallery/`Params` concern; the REPL path uses `Selection` or element ids. The other seven REPL tools are unchanged, and `pick_object` stays registered for the servers that do want it
+`paracore-gen` generates REPL code against the raw Revit API, LINQ and the Paracore DSL. It does not model — `paracore-model` is the server that does. `create-geometry` was still in **this** server's skill catalogue, so the agent was taught a workflow this server cannot support and pointed at sibling servers it does not have. It is now filtered out of gen's catalogue only; the skill stays in the shared core for the servers that model. **Eight method skills here, not nine.**
 
-### Plumbing
+### The build proves it shipped its skills
 
-- The three REPL IntelliSense client calls (completion, diagnostics, hover) are in `grpc_client.py`
-- `VERSION` is bundled from the build CLI, not the `.spec`; proto stubs regenerated from `protos/corescript.proto`
+The bundler copies `mcp_core/skills` from the **working tree**, not from git — and a filter change had left the bundle empty. An installer shipping no skills at all, with no gate looking. `build-gen.ps1` now runs `spikes/verify_bundled_skills.py` after every build and fails if the bundle is empty or missing an expected skill. Prompts are checked the same way.
 
-### From the pre-release review
+### A pick has no signal unless the agent supplies one
 
-- **Quantities are no longer rounded before they are used** — `GetNum(name, unit)` returns the exact conversion; rounding moved to `FormatUnit` / `GetVal`. ⚠ Takeoff numbers will shift in the last decimals, in the accurate direction
-- **Agent loops can be interrupted** — the REPL path never applied `TimeoutRewriter`, so `CheckTimeout()` was never called; it now runs with a 90 s budget per submission
-- **`explore_revit_data` is read-only for real** — the snippet runs inside a `TransactionGroup` that is always rolled back, so even the reflection bypass is discarded by Revit
-- **The schema stopped printing parameter names that cannot resolve** (`Level [Reference]`)
-- **The system prompt no longer calls nine advisory patterns "REJECTED"** — split into REJECTED vs AVOID, matching `ping`
-- Also: a no-op transaction no longer reports "UNVERIFIED capture"; `WhereMatches` advice corrected; known-views list shows the view type and dedupes
-- **Writes now tell the agent to read first** — `ping` and the system prompt require reporting old → new before an overwrite, because the review lost wall Marks and an offset to unrecorded writes
-- **`%TEMP%\paracore_views` no longer grows forever** — exports older than 7 days are pruned on the next export
-- **Second review pass** — a script's last line is no longer truncated away (text keeps first 12 + last 8 lines); an existing-but-empty parameter is no longer reported as a misspelling; the reflection *entry points* are refused, which closes the split-string bypass on file/network/process; lambdas get the timeout check and `Thread.Sleep` is refused
-- **Third review pass — two silent wrong writes closed.** An unrecognised unit used to mean "already in feet", so `SetNum("Base Offset", 5, "furlongs")` committed 5 feet; it now throws and lists what is supported. `SetVal` by name now searches only the categories that parameter can hold, refuses an ambiguous name with its candidates, and treats `"None"` / `"<None>"` / `"Unconnected"` / `"-1"` as "clear" instead of hunting for a same-named element — which is how it once wrote a Phase into a wall's Top Constraint. `WhereMatches` now sees family names, so `WhereMatches("Basic")` finds "Basic Wall". Also: `FormatUnit` renders `m²`/`m³`, the group-filter example was a call that did not compile (CS1501), `read_extension_methods()` no longer cuts mid-snippet, and `create-geometry` stops pointing at skills this server does not have
-- **The skill set now matches what this server is for — and the dead prompt system is gone.** `paracore-model` is what models; gen generates REPL on the fly against the raw Revit API, LINQ and the DSL. So `create-geometry` is filtered out of gen's catalogue (eight method skills, not nine) and stays in the shared core for the servers that model. That exposed the cause of a week of confusing reviews: **nothing was deleted when the implementation changed.** `build_prompt()` assembled ten `prompts/*.md` into a 36 K system prompt and had had NO caller since the core moved — yet it, its ten-file list and its files stayed on disk and shipped in every installer. Eight of the ten had no reader; they are deleted, along with `build_prompt()`, `SKILLS.md` (a generated doc that could not see the Domain's filter) and family's three dead prompt overrides. Two things were rescued first: `verification.md`'s verify/retry rules, now a block in `COMMON_RULES`, and `globals.md`'s `Doc.ProjectInformation` / `Doc.PathName` / `Doc.IsWorkshared`, which existed only behind a resource nobody reads — `get_globals` is a tool now
-- Full notes, including what could not be reproduced and what still needs a live run: [Release-Notes-2.1.0.md](Release-Notes-2.1.0.md)
-- **Fourth review pass — schema tables are no longer truncated.** The 50-row table cap was cutting `CombinedParams()` / `InstanceParams()` / `TypeParams()` results in half, making real parameters look missing. A `cap_exempt` flag on the wire (proto field 4) tells the summarizer to show the table whole; a `SchemaRows` marker in the engine identifies schema output. Element dumps still cap. Also: `pick_object` dropped from gen's surface (gallery concern, not REPL); `ping` cheat-sheet documents which tables are never cut vs capped
-- **Fifth review pass — the schema example named a parameter that does not exist.** `search_schema`'s runnable example was a fixed template using `e.GetStr("Level")`; **Walls have no `Level`** (62 parameters, nearest is `Base Constraint`), and `GetStr` on a missing name returns `""` with no error — so the advice compiled, ran, and produced a blank column, printed two lines under the list that disproves it. The example is now derived from the rows above it (and picks a unit that matches the parameter). Also: float noise gone (`3.0000000000000004` → `3`, totals included), dead `paracore-model` / `paracore-family` pointers removed from `create-geometry` **and from the live system prompt** — the same pointer survived in `GEN_INTRO`, the block delivered on every session, where no gate looked; there is now a gate on the delivered string, `paracore://system-prompt` pointers replaced by the `_read_extension_methods` tool (resources are never read by Claude Desktop) and four messages that named a non-existent tool corrected, and private working notes (`Birr`, "house model", dated measurements, Pro-tier references) removed from the skills and the method reference. ⚠ Two of the review's seven findings were already fixed in source — it had been run against the previous build
+`pick_object` is not an agent tool, and the rules every session receives now say so outright instead of leaving it to be discovered. It holds Revit's UI thread until the user clicks, and nothing it prints reaches the chat before it returns — measured on the operator's screen: during a bare `Pick()` he saw only the generic "Running …", which appears for every call. The status bar, its only other cue, is invisible unless the pointer is already over Revit.
+
+The guidance moved from this server's intro into the **shared** `COMMON_RULES`, so every domain gets it, not just gen. It says what to do instead: **the user selects first** (`get_context` returns `Selection`), or ask by name or parameter (`WhereMatches`, `WhereParam`).
+
+⚠ `pick_object` is no longer *omitted* here either, because it no longer exists in any domain — it was removed from the shared registry on 2026-10-28 (`paracore` `RETIRED.md` R11). Passing `omit_common=("pick_object",)` had become a request to omit something already gone.
+
+### Inherited from the shared core (Add-in v4.8.2)
+
+This server imports `paracore/mcp` rather than carrying a copy, so these apply here without a line of gen-specific code:
+
+- **A qualified type name no longer walks past the security scan** — `new System.Threading.Thread(` executed where `new Thread(` was refused. Measured, then fixed in all three lists (dangerous patterns, read-only guard, file/network policy) by blanking the namespace prefix before any rule runs, so any pattern added later inherits it. `global::` covered too.
+- **The scans no longer read prose** — a comment mentioning `new Transaction(Doc)` refused a correct read-only query. Comments and string literals are blanked first, in both layers. Fixing only the Python layer left the add-in refusing the same query one layer down; that is how the second half was found.
+- **A failed script is rolled back as a set**, and the reply says `THE MODEL MAY HAVE CHANGED` when a raw write ran outside any transaction.
+- **A wrong parameter name raises** instead of returning `0`, and names the real parameter.
+
+### Verification
+
+The acceptance criterion for this release — one item, one test, one measured verdict — is [`Docs/RELEASE_ACCEPTANCE.md`](Docs/RELEASE_ACCEPTANCE.md). Measured on the installed build:
+
+| suite | result |
+|---|---|
+| tool surface (all eight tools, including error paths) | 27/27 |
+| security scan, both layers | 51/51 |
+| scan bypass — qualified names, prose, containment | 17/17 · frozen exe 8/8 |
+| catalog search | 38/38 |
+| engine regressions via the MCP | 25/25 |
+
+⚠ The scan criterion is tested **twice**: in-process (the source is right) and against the frozen `.exe` (the artifact is right). A PyInstaller bundle is a copy — editing `tool_helpers.py` changes nothing in the exe until it is rebuilt.
 
 ### Requirements
 
-- **Paracore Add-in v4.8.1** — released together
-- ⚠ The consent-gate fix needs both halves: Gen 2.1.0 against add-in 4.8.0 still auto-approves the dialog, because 4.8.0's offers `OK`
+- **Paracore Add-in v4.8.2** — released together
+- Windows x64

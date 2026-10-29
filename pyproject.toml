@@ -1,6 +1,6 @@
 [project]
 name = "paracore-gen"
-version = "2.1.0"
+version = "2.1.1"
 description = "Paracore-Gen - the generalist Revit MCP server: generates and runs C# through the Paracore engine."
 license = "MIT"
 requires-python = ">=3.12"
