@@ -76,4 +76,4 @@ default. A hard-coded `..\..\..\paracore-gen` climb silently misses when a calle
 - ⚠ **No specialist skills.** `skills/` is the nine generalist method skills only — no
   `project-modeling`, `annotations-dimensions`, `family-authoring` or `massing-forms`. Those belong
   to **`paracore-model`** / **`paracore-family`**; a copy here is drift.
-- ⚠ Nothing in this file is private. Keep it that way: this repo may be public.
+- ⚠ Nothing in this file is private. Keep it that way: **this repo is PUBLIC**.
