@@ -119,6 +119,16 @@ if (-not $CoreVer) { $CoreVer = "unknown" }
 Set-Content -Path $CoreVerFile -Value $CoreVer.Trim() -NoNewline -Encoding ascii
 Write-Host "  Core version: $($CoreVer.Trim())" -ForegroundColor DarkGray
 
+# ⚠ THIS REPO'S OWN SOURCE HASH — so the gate can detect edits to mcp_server.py, forge_core/,
+#   etc. that the core pin and asset checks are BLIND to. Same rules: no timestamp, written to
+#   THIS repo's dir, computed from the repo's .py files only.
+$EngineRoot = Split-Path $WireDir -Parent
+$SourceHashFile = Join-Path $AgentRoot "SOURCE_HASH"
+$SourceHash = (& $BuildPython (Join-Path $EngineRoot "scripts\source_hash.py") $AgentRoot 2>&1 | Select-Object -Last 1)
+if (-not $SourceHash) { $SourceHash = "unknown" }
+Set-Content -Path $SourceHashFile -Value $SourceHash.Trim() -NoNewline -Encoding ascii
+Write-Host "  Source hash:  $($SourceHash.Trim())" -ForegroundColor DarkGray
+
 # ⚠ The core's SKILLS and PROMPTS are bundled as DATA under `mcp_core/…` — exactly where
 #   prompt_assembler and domain.py look for them at runtime. This repo's OWN skills/ and
 #   prompts/ go to the bundle ROOT (`skills/`, `prompts/`), which is where
@@ -141,7 +151,8 @@ $DataArgs = @(
     "--add-data", "EXTENSION_METHODS.md;.",
     "--add-data", "$SharedCore\mcp_core\skills;mcp_core/skills",
     "--add-data", "$SharedCore\mcp_core\prompts;mcp_core/prompts",
-    "--add-data", "$CoreVerFile;."
+    "--add-data", "$CoreVerFile;.",
+    "--add-data", "$SourceHashFile;."
 )
 foreach ($dirName in @("skills", "prompts")) {
     if (Test-Path (Join-Path $AgentRoot $dirName)) { $DataArgs += @("--add-data", "$dirName;$dirName") }

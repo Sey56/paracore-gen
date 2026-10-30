@@ -68,3 +68,4 @@ spikes/*
 
 # Baked into the exe at build time by build-*.ps1 — provenance, not source.
 CORE_VERSION
+SOURCE_HASH
