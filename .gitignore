@@ -65,3 +65,6 @@ spikes/*
 # Runtime state written by the MCP server while Revit is attached
 .mcp_proc.txt
 .revit_state.txt
+
+# Baked into the exe at build time by build-*.ps1 — provenance, not source.
+CORE_VERSION

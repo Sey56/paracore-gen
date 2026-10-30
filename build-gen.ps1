@@ -82,20 +82,42 @@ Write-Host "Compiling mcp_server.py into standalone executable..." -ForegroundCo
 $IconFile = Join-Path $AgentRoot "icons\$mcpName.ico"
 Push-Location $AgentRoot
 # ── The SHARED MCP CORE — ONE copy, in the ENGINE repo ────────────────────
-# ⚠ It used to be `paracore-gen/mcp_core`, COPIED into this repo (and into three others).
-#   It now lives ONCE at `paracore/mcp/` and every MCP IMPORTS it — so one fix reaches all
-#   five, and there is no copy left to drift. Addressed BY NAME from the repo's parent,
-#   never by a hard-coded directory climb.
+# ⚠ MOVED AGAIN 2026-10-30: the core left the engine repo for its own — `paracore-mcp-core`,
+#   PUBLIC and MIT, because paracore-gen is free and released and imports nine of its twelve
+#   modules. ⚠ TWO directories are needed now: the core, and `paracore/mcp`, which still holds
+#   the WIRE CONTRACT the core imports (`grpc_client`, `utils`, `corescript_pb2*`) — those stay
+#   beside the `.proto` that generates them. A build that sets only `$SharedCore` produces an
+#   exe with NO core while reporting success.
 $SharedCore = $env:PARACORE_MCP_CORE
 if (-not $SharedCore) {
-    $SharedCore = Join-Path (Split-Path $AgentRoot -Parent) "paracore\mcp"
+    $SharedCore = Join-Path (Split-Path $AgentRoot -Parent) "paracore-mcp-core"
+}
+$WireDir = $env:PARACORE_WIRE_DIR
+if (-not $WireDir) {
+    $WireDir = Join-Path (Split-Path $AgentRoot -Parent) "paracore\mcp"
 }
 if (-not (Test-Path (Join-Path $SharedCore "mcp_core\__init__.py"))) {
     Write-Host "BUILD GATE FAILED: the shared MCP core is not at '$SharedCore'." -ForegroundColor Red
-    Write-Host "  Expected <parent>\paracore\mcp\mcp_core. Set PARACORE_MCP_CORE to override." -ForegroundColor Red
+    Write-Host "  Expected <parent>\paracore-mcp-core\mcp_core. Set PARACORE_MCP_CORE to override." -ForegroundColor Red
+    exit 1
+}
+if (-not (Test-Path (Join-Path $WireDir "grpc_client.py"))) {
+    Write-Host "BUILD GATE FAILED: the wire contract is not at '$WireDir'." -ForegroundColor Red
+    Write-Host "  Expected <parent>\paracore\mcp\grpc_client.py. Set PARACORE_WIRE_DIR to override." -ForegroundColor Red
     exit 1
 }
 Write-Host "  Shared core: $SharedCore" -ForegroundColor DarkGray
+Write-Host "  Wire dir:    $WireDir" -ForegroundColor DarkGray
+
+# ⚠ The core's IDENTITY is baked in as DATA, so the exe can be ASKED which core it contains
+#   instead of guessed from an mtime. ⚠ No timestamp in it: a byte-comparing gate would go red
+#   on every rebuild for no reason. ⚠ Written to THIS repo's build dir, never into the core —
+#   building a consumer must not dirty the core.
+$CoreVerFile = Join-Path $AgentRoot "CORE_VERSION"
+$CoreVer = (& $BuildPython (Join-Path $SharedCore "scripts\core_version.py") 2>&1 | Select-Object -Last 1)
+if (-not $CoreVer) { $CoreVer = "unknown" }
+Set-Content -Path $CoreVerFile -Value $CoreVer.Trim() -NoNewline -Encoding ascii
+Write-Host "  Core version: $($CoreVer.Trim())" -ForegroundColor DarkGray
 
 # ⚠ The core's SKILLS and PROMPTS are bundled as DATA under `mcp_core/…` — exactly where
 #   prompt_assembler and domain.py look for them at runtime. This repo's OWN skills/ and
@@ -118,13 +140,14 @@ $DataArgs = @(
     "--add-data", "REPL_GUIDE.md;.",
     "--add-data", "EXTENSION_METHODS.md;.",
     "--add-data", "$SharedCore\mcp_core\skills;mcp_core/skills",
-    "--add-data", "$SharedCore\mcp_core\prompts;mcp_core/prompts"
+    "--add-data", "$SharedCore\mcp_core\prompts;mcp_core/prompts",
+    "--add-data", "$CoreVerFile;."
 )
 foreach ($dirName in @("skills", "prompts")) {
     if (Test-Path (Join-Path $AgentRoot $dirName)) { $DataArgs += @("--add-data", "$dirName;$dirName") }
 }
 
-& $BuildPython -m PyInstaller --onefile --name $mcpName --paths ".;$SharedCore" `
+& $BuildPython -m PyInstaller --onefile --name $mcpName --paths ".;$SharedCore;$WireDir" `
     --version-file $VersionFile `
     --icon $IconFile `
     --exclude-module logfire `
