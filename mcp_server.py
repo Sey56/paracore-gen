@@ -18,27 +18,56 @@ paracore-model's.
 # deliberately the one piece of boilerplate each MCP carries: it is the repo's own
 # location fact, and nothing about the core's contents is repeated here.
 #   frozen  PyInstaller already unpacked the core into sys._MEIPASS, on sys.path.
-#   dev     walk up to the sibling `paracore/` checkout and use its `mcp/`.
+#   dev     resolve the two sibling checkouts (see below).
 import os as _os
 import sys as _sys
 
 if not getattr(_sys, "frozen", False):
     _here = _os.path.dirname(_os.path.abspath(__file__))
-    _dir, _core = _here, None
-    for _ in range(6):
-        if _os.path.isfile(_os.path.join(_dir, "paracore", "mcp", "mcp_core", "__init__.py")):
-            _core = _os.path.join(_dir, "paracore", "mcp")
-            break
-        _up = _os.path.dirname(_dir)
-        if _up == _dir:
-            break
-        _dir = _up
-    if _core is None:
-        raise RuntimeError(
-            "Paracore MCP shared core not found: no `paracore/mcp/mcp_core` above "
-            f"{_here}. The core lives in the ENGINE repo, so the repos must be SIBLING "
-            "checkouts under one parent directory."
-        )
+
+    def _up_to(parts):
+        """The parent dir holding the sibling checkouts, or None. Walk UP, never `..`."""
+        _d = _here
+        for _ in range(8):
+            if _os.path.isfile(_os.path.join(_d, *parts)):
+                return _d
+            _p = _os.path.dirname(_d)
+            if _p == _d:
+                break
+            _d = _p
+        return None
+
+    # ⚠⚠ TWO roots, in TWO repos since 2026-10-30: `mcp_core` is in `paracore-mcp-core`,
+    # while the wire contract it imports (`grpc_client`, `utils`, `corescript_pb2*`) stayed
+    # at `paracore/mcp/`, beside the `.proto` that generates them. ONE path only worked
+    # while `mcp_core` sat INSIDE `paracore/mcp`; resolving one now fails the other import.
+    _p = _up_to(("paracore-mcp-core", "mcp_core", "__init__.py"))
+    _core = _os.environ.get("PARACORE_MCP_CORE") or (
+        _os.path.join(_p, "paracore-mcp-core") if _p else None
+    )
+    _wire = _os.environ.get("PARACORE_WIRE_DIR") or (
+        _os.path.join(_p, "paracore", "mcp") if _p else None
+    )
+    if not _p:  # legacy single-repo layout: paracore/mcp/mcp_core
+        _p = _up_to(("paracore", "mcp", "mcp_core", "__init__.py"))
+        _core = _core or (_os.path.join(_p, "paracore", "mcp") if _p else None)
+        _wire = _wire or _core
+
+    # ⚠ Validate BOTH by a file only they can contain, so a half-resolved pair fails here
+    # instead of 20 seconds later as a PyInstaller "Unable to find" with a green exit.
+    for _lbl, _root, _probe in (
+        ("the shared MCP core", _core, ("mcp_core", "__init__.py")),
+        ("the wire contract", _wire, ("grpc_client.py",)),
+    ):
+        if not _root or not _os.path.isfile(_os.path.join(_root, *_probe)):
+            raise RuntimeError(
+                f"Paracore MCP shared core not found: {_lbl} is not at {_root!r} "
+                f"(expected {'/'.join(_probe)} there). The repos must be SIBLING checkouts "
+                "under one parent directory (paracore + paracore-mcp-core), or set "
+                "PARACORE_MCP_CORE / PARACORE_WIRE_DIR."
+            )
+    if _wire not in _sys.path:
+        _sys.path.insert(0, _wire)
     _sys.path.insert(0, _core)
 
 import logging

@@ -26,23 +26,25 @@ _watcher = None
 
 
 def _add_shared_core():
-    """Put the sibling `paracore/mcp` on sys.path — the same walk as mcp_server.py."""
-    if os.path.isfile(os.path.join(REPO, "paracore", "mcp", "mcp_core", "__init__.py")):
-        core = os.path.join(REPO, "paracore", "mcp")
-    else:
-        core, d = None, REPO
-        for _ in range(6):
-            if os.path.isfile(os.path.join(d, "paracore", "mcp", "mcp_core", "__init__.py")):
-                core = os.path.join(d, "paracore", "mcp")
-                break
-            up = os.path.dirname(d)
-            if up == d:
-                break
-            d = up
+    """Put BOTH roots on sys.path — `mcp_core` in `paracore-mcp-core`, `grpc_client` in `paracore/mcp`."""
+    core, d = None, REPO
+    for _ in range(8):
+        if os.path.isfile(os.path.join(d, "paracore-mcp-core", "mcp_core", "__init__.py")):
+            core = os.path.join(d, "paracore-mcp-core")
+            break
+        up = os.path.dirname(d)
+        if up == d:
+            break
+        d = up
     if core is None:
-        raise RuntimeError("shared MCP core (paracore/mcp/mcp_core) not found")
-    if core not in sys.path:
-        sys.path.insert(0, core)
+        raise RuntimeError("shared MCP core (paracore-mcp-core/mcp_core) not found")
+    core = os.environ.get("PARACORE_MCP_CORE") or core
+    wire = os.environ.get("PARACORE_WIRE_DIR") or os.path.join(
+        os.path.dirname(core), "paracore", "mcp"
+    )
+    for p in (core, wire):
+        if os.path.isdir(p) and p not in sys.path:
+            sys.path.insert(0, p)
 
 
 def boot(start_watcher: bool = True):

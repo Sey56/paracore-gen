@@ -37,10 +37,12 @@ import mcp_server  # noqa: E402  — binds sys.path to the sibling paracore/mcp 
 from mcp_core import prompt_assembler as pa  # noqa: E402
 from mcp_core import server as srv  # noqa: E402
 
-CORE = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "paracore", "mcp", "mcp_core",
-)
+# `mcp_server` (imported above) has already resolved BOTH roots onto sys.path, so derive
+# the core from the module that actually loaded rather than climbing again — a second walk
+# is a second thing that can rot, and this one did (2026-10-30).
+import mcp_core as _mcp_core  # noqa: E402
+
+CORE = os.path.dirname(os.path.abspath(_mcp_core.__file__))
 
 # A word counts as "distinctive" when it is long enough that a coincidental match is
 # unlikely, and not a plumbing word that every C# or Revit sentence contains.

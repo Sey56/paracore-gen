@@ -23,9 +23,9 @@ import pytest
 if not getattr(sys, "frozen", False):
     _here = os.path.dirname(os.path.abspath(__file__))
     _dir, _core = _here, None
-    for _ in range(6):
-        if os.path.isfile(os.path.join(_dir, "paracore", "mcp", "mcp_core", "__init__.py")):
-            _core = os.path.join(_dir, "paracore", "mcp")
+    for _ in range(8):
+        if os.path.isfile(os.path.join(_dir, "paracore-mcp-core", "mcp_core", "__init__.py")):
+            _core = os.path.join(_dir, "paracore-mcp-core")
             break
         _up = os.path.dirname(_dir)
         if _up == _dir:
@@ -33,6 +33,13 @@ if not getattr(sys, "frozen", False):
         _dir = _up
     if _core is None:
         raise RuntimeError(f"shared MCP core not found above {_here}")
+    # TWO roots: `mcp_core` is in `paracore-mcp-core`; `grpc_client` stayed at `paracore/mcp`.
+    _core = os.environ.get("PARACORE_MCP_CORE") or _core
+    _wire = os.environ.get("PARACORE_WIRE_DIR") or os.path.join(
+        os.path.dirname(_core), "paracore", "mcp"
+    )
+    if os.path.isdir(_wire) and _wire not in sys.path:
+        sys.path.insert(0, _wire)
     sys.path.insert(0, _core)
 
 from mcp_core.domain import (  # noqa: E402

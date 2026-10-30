@@ -26,9 +26,9 @@ import sys as _sys
 if not getattr(_sys, "frozen", False):
     _here = _os.path.dirname(_os.path.abspath(__file__))
     _dir, _core = _here, None
-    for _ in range(6):
-        if _os.path.isfile(_os.path.join(_dir, "paracore", "mcp", "mcp_core", "__init__.py")):
-            _core = _os.path.join(_dir, "paracore", "mcp")
+    for _ in range(8):
+        if _os.path.isfile(_os.path.join(_dir, "paracore-mcp-core", "mcp_core", "__init__.py")):
+            _core = _os.path.join(_dir, "paracore-mcp-core")
             break
         _up = _os.path.dirname(_dir)
         if _up == _dir:
@@ -36,10 +36,17 @@ if not getattr(_sys, "frozen", False):
         _dir = _up
     if _core is None:
         raise RuntimeError(
-            "Paracore MCP shared core not found: no `paracore/mcp/mcp_core` above "
-            f"{_here}. The core lives in the ENGINE repo, so the repos must be SIBLING "
-            "checkouts under one parent directory."
+            "Paracore MCP shared core not found: no `paracore-mcp-core/mcp_core` above "
+            f"{_here}. The repos must be SIBLING checkouts under one parent directory."
         )
+    # TWO roots: `mcp_core` is in `paracore-mcp-core`; the wire contract it imports
+    # (`grpc_client`) stayed at `paracore/mcp`. Both must be on sys.path.
+    _core = _os.environ.get("PARACORE_MCP_CORE") or _core
+    _wire = _os.environ.get("PARACORE_WIRE_DIR") or _os.path.join(
+        _os.path.dirname(_core), "paracore", "mcp"
+    )
+    if _os.path.isdir(_wire) and _wire not in _sys.path:
+        _sys.path.insert(0, _wire)
     _sys.path.insert(0, _core)
 import json
 import sys
