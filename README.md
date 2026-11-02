@@ -31,16 +31,40 @@ the deep specialist for modelling or families — those live in the sibling
 
 ## What a snippet can reach
 
-Agent code runs as C# inside Revit's own process, with `System` and `System.IO` already
-imported. That is a real capability, so it is **refused at the boundary** rather than trusted:
-`paracore-gen` scans every snippet before it is compiled, and the add-in scans it a second
-time so a direct gRPC caller cannot skip the first check. The two lists are the same list, in
-the same order — a test fails if they ever diverge.
+Agent code runs as C# inside Revit's own process, with `System` already imported. `System.IO`
+is **not** — it is refused at the symbol level on this channel, so a snippet cannot name a file
+API at all (see "Files" below for why, and for what that costs). That is a real capability
+either way, so it is **refused at the point of submission** rather than trusted: `paracore-gen`
+scans every snippet before it is compiled, and the add-in scans it a second time so a direct
+gRPC caller cannot skip the first check. The two lists are the same list, in the same order — a
+test fails if they ever diverge.
 
 ⚠ **The consent dialog decides WHO may run agent code. It is a decision, not a second line of
-defence** — do not read "the human clicked Allow" as protection. The scan is the protection.
+defence** — do not read "the human clicked Allow" as protection.
+**It asks once per Revit session, not once per snippet**, and that is deliberate. A per-write
+prompt would fire on every step of a multi-step edit, and a prompt that appears twenty times in
+a row does not produce twenty judgements — it produces one reflex. The protection that has to
+hold when nobody is reading the dialog is the sandbox, which is why the sandbox is the thing
+built to hold without a human in the loop.
 
-**Refused outright — no agent snippet reaches these:**
+⚠⚠ **The scan is a FILTER, not a sandbox.** It refuses the forms listed below and nothing
+else: a call it does not name, a name assembled at runtime, or a type reached through a
+reference the compiler was given will not be refused. Treat it as a mistake-catcher that stops
+the common accident — not as a boundary that stops a determined script. What a snippet can
+*name* is decided by the reference set, not by this list, and the list is the wrong place to
+look for the boundary. `tests/test_scan_coverage.py` holds this page to exactly the claims it
+makes; a rule that stops matching fails there, not in production.
+
+⚠ **This list is the REPL entry point's list.** It is enforced on `execute_repl` — the path a
+chat snippet takes — by this package's scan and by the add-in's mirror. A gallery script
+submitted through `execute_script` (that is `paracore-forge`) is compiled as an installed tool
+and is **not** subject to the file/thread list here: `RoomFinishUpdater` writes an output CSV at
+runtime, so a blanket file ban on that path would refuse a shipped tool. What **both** paths
+share is the semantic sandbox (`ScriptSandbox`), which refuses process, network, registry,
+native code and reflection at the symbol level regardless of caller — measured on both entry
+points, not assumed. **That is the boundary; this list is the filter on top of it.**
+
+**Refused outright — no agent snippet reaches these** (on `execute_repl`):
 
 - **The network.** `HttpClient`, `WebClient`, `WebRequest`, `HttpRequestMessage`, `Socket`,
   `TcpClient`, `UdpClient`, `Dns`, `SmtpClient`, `Ping`, `RestSharp`, and the whole
@@ -59,10 +83,11 @@ defence** — do not read "the human clicked Allow" as protection. The scan is t
   (An earlier round refused only `Type.GetType` / `Activator` / `.Assembly` / `GetMethod`, and
   a review walked straight past it with `AppDomain.GetAssemblies()` → `GetTypes()` →
   `GetConstructor(...).Invoke(...)`.)
-- **Destroying, moving or replacing a file.** `File.Delete/Move/Replace/Copy/SetAttributes/
-  OpenWrite/WriteAll*/Append*`, `Directory.Delete/Move`, `new StreamWriter(path)`, every
-  `FileMode` except `CreateNew`, and the `FileInfo`/`DirectoryInfo` instance forms.
-  Creating a **new** file is allowed — see below.
+- **Any file access at all** (widened 2026-11-01). `System.IO` is refused at the symbol level,
+  so `File.*`, `Directory.*`, `FileInfo`/`DirectoryInfo`, `FileStream` and `StreamWriter` cannot
+  be named — read, enumerate, stat or create. The list below still describes what the text scan
+  refuses, but on this channel the scan is now the *second* line, not the first. See "Files"
+  further down for the measurement that forced this and what it costs.
 - **Sleeping.** `Thread.Sleep` — a blocking call cannot be interrupted by the timeout, so it is
   the one measured way to freeze Revit from a snippet.
 
@@ -89,23 +114,57 @@ so a comment that says "never call `Process.Start`" is not itself a violation. (
     instead of being searched for. Writing a same-named element of the wrong kind — how
     `SetVal("Top Constraint", "None")` once wrote a Phase and changed a wall's height — is no
     longer reachable.
-- **Files — create only.** Agent code may create a **new** file and may read files. It may
-  **never replace, move or delete an existing one** — not even a file it wrote earlier in the
-  same session. The blessed write is `FileMode.CreateNew`, which throws when the path exists;
-  the agent then picks the next free name (`report.csv`, `report_001.csv`, …). Deleting files
-  is the user's job.
-  ⚠ That sentence is now **true of the code as well as the docs**: the delete/move/replace
-  APIs above are refused by name, in both layers.
-- **A human is not an agent.** A gallery tool or a REPL command *you* run keeps full file
-  access — `RoomFinishUpdater` reads a CSV and writes one, and that is your action, not an
-  agent's. The policy is keyed on the call's `source`, and only sources containing `agent`
-  are held to it.
+- **Files — one folder, and only one** (changed 2026-11-01, measured, then relaxed the same day).
+  A snippet cannot name `System.IO` at all, so it cannot read, enumerate, stat or create a file
+  anywhere. File *work* is still possible, through `ScriptApi.Files`, which confines every path
+  to a single workspace folder — `Files.Root`, `%LOCALAPPDATA%\Paracore\AgentWorkspace`, movable
+  with `PARACORE_AGENT_WORKSPACE`:
+
+  ```csharp
+  Files.WriteText("takeoff.csv", csv);        // inside the workspace
+  var text = Files.ReadText("input.csv");
+  foreach (var p in Files.List()) Println(p);
+  Files.Delete("scratch.txt");
+  ```
+
+  - **Why a façade, and not "`System.IO` allowed under a folder".** A path can only be checked
+    where its *value* exists. The sandbox is a compile-time symbol walk: `Path.Combine(root, name)`
+    says nothing about `name`, and `..`, a junction, a `\\?\` device prefix or an alternate data
+    stream defeats any static test — leaving a boundary that looks real and is not. `Files`
+    canonicalises the path, rejects device paths, streams and Windows device names, resolves every
+    reparse point, and re-checks containment against the *resolved* target. At runtime.
+  - **Why the `System.IO` ban stays.** Creation was a persistence primitive. `FileMode.CreateNew`
+    worked, and `C:\ProgramData\Autodesk\Revit\Addins\2025` grants
+    `BUILTIN\Users:(CI)(WD,AD,WEA,WA)` — Users may create files there. A `.addin` manifest planted
+    in that folder is loaded by Revit at the **next launch**, with no sandbox and no consent. A
+    file outlives the run, so the workspace is the only place one may land.
+  - **Reading was an egress channel.** Enumeration and existence probes worked against `C:\`, the
+    user profile, the Chrome profile and the Revit Addins folder, and `Environment.UserName`
+    returned the account name. Whatever a snippet reads is returned in the tool output, to the
+    model provider — the network block does not cover that path.
+  - **Still refused:** anything outside the folder, deleting the workspace root itself, and the
+    Revit calls that write or read a file at a path you name — `SaveAs`, `Export*`,
+    `OpenDocumentFile`, `LoadFamily`, `Import`. Revit performs those writes itself, so no
+    reference-set rule can see them; they would be the last route out. `ExportImage(...)`, the
+    engine helper, is *allowed* because it routes its target through the same guard.
+  - A **gallery tool** run from the desktop app still has full file access — `RoomFinishUpdater`
+    reads a CSV and writes one, and that is the product working.
+  - ⚠ This is a **channel** distinction (which gRPC entry point), not a trust level attached to
+    the `source` string. See `ScriptSandbox.ReplChannel` and
+    `ExecutionGlobals.ConfineFileAccess`.
+- **A human is not an agent — but the REPL channel is still the REPL channel.** The text scan is
+  keyed on the call's `source`, and only sources containing `agent` are held to it. The
+  `System.IO` refusal is **not** keyed on `source`: it is a property of the `execute_repl` entry
+  point, so a snippet *you* type there has no file access either. That is deliberate — the
+  desktop app runs saved scripts and gallery tools through `execute_script`, which keeps full
+  file access, so `RoomFinishUpdater` (reads a CSV, writes one) is unaffected.
 
 ### Known limits, stated rather than implied
 
 | Limit | What it means |
 |---|---|
-| It is a deny-list, not a sandbox | Every capability above is refused by name, and the entry points are refused rather than the target types — but a **delegate obtained from a framework method**, code hidden inside an **interpolated-string hole**, and a **loop inside a framework call** are not reasoned about. |
+| It is a deny-list, not a sandbox | Every capability above is refused by name, and the entry points are refused rather than the target types. The **delegate** gap is now closed at the binding call (`Delegate.CreateDelegate` is refused, and the closed reference set leaves no route to a banned *type*: measured, `using T = System.Type; T.GetType("System.IO.FileStream, …")` is caught by the symbol walk). Code hidden inside an **interpolated-string hole** is not reasoned about. |
+| A single framework call cannot be interrupted | Confirmed by an external review (2026-11-01): `SetExecutionTimeout(1)` did **not** stop `Enumerable.Range(...).Count(...)`; the call ran 2.5 s and would run as long as it liked. The injected budget only reaches loops and block-bodied lambdas **in your own code**, so a framework loop with no lambda in the path is a **denial of service, not an escape** — nothing outside the workspace becomes reachable, Revit just stops responding. The only real fix is out-of-process execution, which is not this release. |
 | Runaway code has a budget, not a kill switch | A timeout check is injected at the top of every loop body **in your own code**, and at the entry of every **block-bodied lambda** — so `…Select(x => { … })` is guarded even when the loop itself lives inside the framework call. Default **90 s**; raise it with `SetExecutionTimeout(n)` as the first statement. Not interrupted: a single blocking call (`Thread.Sleep` is refused outright for exactly this reason), a framework loop with **no** block-bodied lambda in the path — `Enumerable.Range(0, int.MaxValue).ToList()` runs to the end and Revit stays frozen — and deep recursion. A wedged Revit is ended by restarting Revit. |
 | The dialog watcher presses buttons | A resident thread answers Revit's modal dialogs so a blocked call can return, and reports what it pressed. It will also answer a dialog you did not expect. Kill switch: `PARACORE_WATCH_DIALOGS=0`. |
 | Workshared and very large models are untested | The review ran against a small single-user model. |

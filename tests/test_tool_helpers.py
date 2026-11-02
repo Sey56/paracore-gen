@@ -439,10 +439,14 @@ class TestReadOnlyGuard:
 
 
 # ── Agent file / network policy ─────────────────────────────────────────────
-# ⚠⚠ THE RULE (operator, 2026-10-27): an agent MAY create a new file and MAY read
-#    files. It may NEVER replace, move or delete an existing one — "even if it is the one
-#    it created earlier" — because a replace cannot tell an output from something
-#    important. The user deletes files; the agent does not. Network is off.
+# ⚠⚠ WHAT THESE TESTS PIN, AND WHAT THEY DO NOT (rewritten 2026-11-01). They pin the
+#    PYTHON SCAN's scope: which spellings get an early, friendly refusal at the MCP.
+#    They are NOT the boundary and must never be read as one — the boundary is the
+#    engine's closed reference set plus the runtime path check in ScriptApi.Files.
+#    The old rule ("an agent MAY create a new file and MAY read files", with
+#    `FileMode.CreateNew` as the blessed write) is DEAD on the REPL channel: the engine
+#    refuses System.IO outright. So `test_allows_create_new_and_reads` passing means
+#    "the scan does not refuse this", NOT "the agent may do this".
 class TestAgentFilePolicy:
     def test_refuses_every_way_to_replace_or_delete(self):
         for code in (
@@ -463,7 +467,12 @@ class TestAgentFilePolicy:
             assert check_agent_file_policy(code, "mcp_agent") is not None, code
 
     def test_allows_create_new_and_reads(self):
-        """The blessed write path, and every read, must pass — or the rule is unusable."""
+        """The scan lets these through — it does NOT mean the agent may run them.
+
+        ⚠ On the REPL channel the ENGINE refuses `System.IO` outright, so `FileMode.CreateNew`
+        and `File.ReadAllText` do not compile there. This test pins the scan's scope only; the
+        blessed route is `ScriptApi.Files`, confined to the workspace.
+        """
         for code in (
             'using (var fs = new FileStream(p, FileMode.CreateNew)) { fs.Write(b, 0, b.Length); }',
             'var text = File.ReadAllText(p);',
@@ -472,6 +481,20 @@ class TestAgentFilePolicy:
             'using (var r = new StreamReader(p)) { Println(r.ReadToEnd()); }',
         ):
             assert check_agent_file_policy(code, "mcp_agent") is None, code
+
+    def test_refusal_message_does_not_promise_a_refused_recipe(self):
+        """A refusal that instructs the refused action is worse than silence.
+
+        Measured 2026-11-01: the message told the agent to write with
+        `FileMode.CreateNew`, which the semantic sandbox refuses. The text must describe
+        the workspace façade and must not name the dead recipe.
+        """
+        msg = check_agent_file_policy('File.WriteAllText(p, text);', "mcp_agent")
+        assert msg is not None
+        assert "MAY create a new file" not in msg
+        assert "FileMode.CreateNew" not in msg
+        assert "Files.WriteText" in msg          # the sanctioned route is named
+        assert "Files.Root" in msg               # and so is the boundary
 
     def test_filemode_createnew_is_not_mistaken_for_create(self):
         """`FileMode.Create` is a SUBSTRING of `FileMode.CreateNew` — the trap in this rule."""
