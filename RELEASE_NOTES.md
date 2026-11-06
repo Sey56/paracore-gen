@@ -1,4 +1,23 @@
-## Paracore-Gen v2.1.1
+## Paracore-Gen v2.1.2 (November 2026) — The Exe Can Prove What It Is
+
+Full notes: [Release-Notes-2.1.2.md](Release-Notes-2.1.2.md) · Previous: [v2.1.1](https://github.com/Sey56/paracore-gen/releases/tag/v2.1.1)
+
+Install with **Paracore Add-in v4.8.3** — released together.
+
+A provenance release. The frozen exe now carries **`CORE_VERSION`** (which shared core it contains)
+and **`SOURCE_HASH`** (a hash of this repo's **tracked** `.py` files, so edits to `mcp_server.py`
+cannot hide behind a core pin). Both are baked with no timestamp, so a byte-comparing gate does not
+go red on every rebuild. `build-gen.ps1` resolves the shared core from its own repo — the **two**
+sibling checkouts, not the pre-move single path. The spec now says this repo is **PUBLIC (MIT)**.
+
+Through the shared core it inherits Add-in 4.8.3's compile-time capability refusal,
+workspace-confined file access, closed scan bypasses and **Revit 2027 support**.
+
+> 📖 Full details: **[Paracore v4.8.3](https://github.com/Sey56/Paracore/releases)** · **[Paracore-Gen v2.1.2](https://github.com/Sey56/paracore-gen/releases)**
+
+---
+
+## Paracore-Gen v2.1.1 (October 2026) — previous
 
 Full notes: [Release-Notes-2.1.1.md](Release-Notes-2.1.1.md) · Previous: [v2.1.0](https://github.com/Sey56/paracore-gen/releases/tag/v2.1.0) · [v2.0.0](https://github.com/Sey56/paracore-gen/releases/tag/v2.0.0)
 
