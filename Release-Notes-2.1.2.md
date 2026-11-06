@@ -7,7 +7,7 @@ which source tree it was built from, instead of being guessed from an mtime. It 
 security and Revit 2027 work shipped with Add-in v4.8.3.
 
 > **Supersedes the published v2.1.1 (2026-10-29).** Everything in
-> [v2.1.1](Release-Notes-2.1.1.md) is included.
+> [v2.1.1](https://github.com/Sey56/paracore-gen/blob/main/Release-Notes-2.1.1.md) is included.
 
 ## Download
 
