@@ -14,18 +14,18 @@ if (-not $Version) {
     }
 }
 
-# ⚠ ONE name for everything (2026-10-09): repo, build script, exe, installer, display name,
+# ! ONE name for everything (2026-10-09): repo, build script, exe, installer, display name,
 #   MCP handshake and config key are ALL `paracore-gen` / `Paracore-Gen`. There is no
-#   product-name-vs-exe-name split any more — that split existed only because the exe was
+#   product-name-vs-exe-name split any more - that split existed only because the exe was
 #   called paracore-mcp.exe and could not be renamed while installs depended on the path.
-#   $mcpName drives the PyInstaller --name (⇒ dist\paracore-gen.exe + paracore-gen.spec),
+#   $mcpName drives the PyInstaller --name (=> dist\paracore-gen.exe + paracore-gen.spec),
 #   the icon path, InternalName and OriginalFilename. Change it and you MUST change
-#   paracore-gen.iss, mcp_server.py's FastMCP() and the client's mcp.json to match —
+#   paracore-gen.iss, mcp_server.py's FastMCP() and the client's mcp.json to match -
 #   the surfaces are pinned in paracore-ecosystem/MASTER_SYSTEM_SPEC.md ("PRODUCT NAMING").
 $mcpName = "paracore-gen"
 $description = "Paracore-Gen"
 
-# ── Banner ────────────────────────────────────────────────────────────────
+# -- Banner ----------------------------------------------------------------
 Write-Host '=================================' -ForegroundColor Cyan
 Write-Host "  Building $description v$Version"
 Write-Host '=================================' -ForegroundColor Cyan
@@ -81,11 +81,11 @@ Write-Host "  Version info: $Version" -ForegroundColor DarkGray
 Write-Host "Compiling mcp_server.py into standalone executable..." -ForegroundColor Yellow
 $IconFile = Join-Path $AgentRoot "icons\$mcpName.ico"
 Push-Location $AgentRoot
-# ── The SHARED MCP CORE — ONE copy, in the ENGINE repo ────────────────────
-# ⚠ MOVED AGAIN 2026-10-30: the core left the engine repo for its own — `paracore-mcp-core`,
+# -- The SHARED MCP CORE - ONE copy, in the ENGINE repo --------------------
+# ! MOVED AGAIN 2026-10-30: the core left the engine repo for its own - `paracore-mcp-core`,
 #   PUBLIC and MIT, because paracore-gen is free and released and imports nine of its twelve
-#   modules. ⚠ TWO directories are needed now: the core, and `paracore/mcp`, which still holds
-#   the WIRE CONTRACT the core imports (`grpc_client`, `utils`, `corescript_pb2*`) — those stay
+#   modules. ! TWO directories are needed now: the core, and `paracore/mcp`, which still holds
+#   the WIRE CONTRACT the core imports (`grpc_client`, `utils`, `corescript_pb2*`) - those stay
 #   beside the `.proto` that generates them. A build that sets only `$SharedCore` produces an
 #   exe with NO core while reporting success.
 $SharedCore = $env:PARACORE_MCP_CORE
@@ -109,9 +109,9 @@ if (-not (Test-Path (Join-Path $WireDir "grpc_client.py"))) {
 Write-Host "  Shared core: $SharedCore" -ForegroundColor DarkGray
 Write-Host "  Wire dir:    $WireDir" -ForegroundColor DarkGray
 
-# ⚠ The core's IDENTITY is baked in as DATA, so the exe can be ASKED which core it contains
-#   instead of guessed from an mtime. ⚠ No timestamp in it: a byte-comparing gate would go red
-#   on every rebuild for no reason. ⚠ Written to THIS repo's build dir, never into the core —
+# ! The core's IDENTITY is baked in as DATA, so the exe can be ASKED which core it contains
+#   instead of guessed from an mtime. ! No timestamp in it: a byte-comparing gate would go red
+#   on every rebuild for no reason. ! Written to THIS repo's build dir, never into the core -
 #   building a consumer must not dirty the core.
 $CoreVerFile = Join-Path $AgentRoot "CORE_VERSION"
 $CoreVer = (& $BuildPython (Join-Path $SharedCore "scripts\core_version.py") 2>&1 | Select-Object -Last 1)
@@ -119,7 +119,7 @@ if (-not $CoreVer) { $CoreVer = "unknown" }
 Set-Content -Path $CoreVerFile -Value $CoreVer.Trim() -NoNewline -Encoding ascii
 Write-Host "  Core version: $($CoreVer.Trim())" -ForegroundColor DarkGray
 
-# ⚠ THIS REPO'S OWN SOURCE HASH — so the gate can detect edits to mcp_server.py, forge_core/,
+# ! THIS REPO'S OWN SOURCE HASH - so the gate can detect edits to mcp_server.py, forge_core/,
 #   etc. that the core pin and asset checks are BLIND to. Same rules: no timestamp, written to
 #   THIS repo's dir, computed from the repo's .py files only.
 $EngineRoot = Split-Path $WireDir -Parent
@@ -129,21 +129,21 @@ if (-not $SourceHash) { $SourceHash = "unknown" }
 Set-Content -Path $SourceHashFile -Value $SourceHash.Trim() -NoNewline -Encoding ascii
 Write-Host "  Source hash:  $($SourceHash.Trim())" -ForegroundColor DarkGray
 
-# ⚠ The core's SKILLS and PROMPTS are bundled as DATA under `mcp_core/…` — exactly where
+# ! The core's SKILLS and PROMPTS are bundled as DATA under `mcp_core/...` - exactly where
 #   prompt_assembler and domain.py look for them at runtime. This repo's OWN skills/ and
 #   prompts/ go to the bundle ROOT (`skills/`, `prompts/`), which is where
 #   `bootstrap.domain_root()` points a Domain.
-# ⚠ Added CONDITIONALLY: PyInstaller fails on a missing --add-data source, and paracore-gen
+# ! Added CONDITIONALLY: PyInstaller fails on a missing --add-data source, and paracore-gen
 #   (the generalist) has neither its own skills nor its own prompt overrides.
-# ⚠⚠ `VERSION;.` IS MANDATORY, and it MUST BE HERE — in the `--add-data` list, NOT in the `.spec`.
-#   ⚠⚠ THE `.spec` IS A BUILD OUTPUT, NOT AN INPUT. This script passes `--name` + `--add-data` on
+# !! `VERSION;.` IS MANDATORY, and it MUST BE HERE - in the `--add-data` list, NOT in the `.spec`.
+#   !! THE `.spec` IS A BUILD OUTPUT, NOT AN INPUT. This script passes `--name` + `--add-data` on
 #   the CLI, so PyInstaller REGENERATES `paracore-gen.spec` and OVERWRITES any edit made to it.
 #   MEASURED 2026-10-13: a `VERSION` entry added to the spec was silently gone after a build
-#   (grep count 0, spec mtime = build time) while the version stayed wrong — the classic
+#   (grep count 0, spec mtime = build time) while the version stayed wrong - the classic
 #   "edited the generated artifact instead of the authority" trap.
-#   ⚠ WHY IT MATTERS: `mcp_core.server.apply_server_version` reads `<domain.root>/VERSION`
+#   ! WHY IT MATTERS: `mcp_core.server.apply_server_version` reads `<domain.root>/VERSION`
 #   (`sys._MEIPASS` when frozen) to set the MCP handshake's `serverInfo.version`. Without the
-#   bundle entry the handshake silently reports the mcp SDK's version — "1.27.2", not "2.0.0".
+#   bundle entry the handshake silently reports the mcp SDK's version - "1.27.2", not "2.0.0".
 #   (Forge differs: `build-forge.ps1` builds FROM its spec, so there the spec IS the input.)
 $DataArgs = @(
     "--add-data", "VERSION;.",
@@ -185,21 +185,21 @@ Pop-Location
 # 4. PyInstaller outputs to dist/ directly (we're running from $AgentRoot)
 $ExePath = Join-Path $AgentRoot "dist\$mcpName.exe"
 
-# ── 4b. GATE: every prompt the assembler reads at runtime must be IN the exe ──
+# -- 4b. GATE: every prompt the assembler reads at runtime must be IN the exe --
 # prompt_assembler.py loads mcp_core/prompts/*.md at RUNTIME. When that directory
 # is absent from the bundle, _read() returns "[Prompt file not found: X]" for every
 # section, so `get_section()` / `build_extension_reference()` return pure placeholders while the
-# build reports success — the agent then has no API reference and nothing errors.
+# build reports success - the agent then has no API reference and nothing errors.
 # A gate must not silently skip (rule 3) and an empty scan must FAIL.
 #
-# ⚠ Do NOT search the exe's raw bytes: the PKG is compressed, so present text
+# ! Do NOT search the exe's raw bytes: the PKG is compressed, so present text
 # returns 0 matches just like absent text. Extract with PyInstaller's own reader.
 Write-Host ''
 Write-Host 'Verifying bundled prompts...' -ForegroundColor Yellow
 $PromptSrc = Join-Path $SharedCore 'mcp_core\prompts'
 $Expected = @(Get-ChildItem -Path $PromptSrc -Filter *.md -File -ErrorAction SilentlyContinue)
 if ($Expected.Count -eq 0) {
-    Write-Host 'BUILD GATE FAILED: no prompt files found in mcp_core/prompts — the' -ForegroundColor Red
+    Write-Host 'BUILD GATE FAILED: no prompt files found in mcp_core/prompts - the' -ForegroundColor Red
     Write-Host 'gate has lost its subject and cannot verify anything.' -ForegroundColor Red
     exit 1
 }
@@ -211,16 +211,16 @@ if (Test-Path $Verify) {
         exit 1
     }
 } else {
-    # ⚠ A gate that silently SKIPS is not a gate (same reason as the skills gate below).
+    # ! A gate that silently SKIPS is not a gate (same reason as the skills gate below).
     Write-Host "BUILD GATE FAILED: $Verify is missing; prompt bundling cannot be verified." -ForegroundColor Red
     exit 1
 }
 
 Write-Host ''
 Write-Host 'Verifying bundled skills...' -ForegroundColor Yellow
-# ⚠⚠ WHY THIS GATE EXISTS (2026-10-27): `read_skill` fails POLITELY. With no skills in
+# !! WHY THIS GATE EXISTS (2026-10-27): `read_skill` fails POLITELY. With no skills in
 #   the bundle it answers "No skill named 'query-filter'. Available: query-filter,
-#   aggregate-group, ..." — a list of the very skills it cannot open. Nothing raises,
+#   aggregate-group, ..." - a list of the very skills it cannot open. Nothing raises,
 #   the build reports success, and a source run is unaffected, so the exe is the only
 #   place the fault is visible. Same failure shape as the prompt gate above.
 #   Measured on the shipped exe: all 9 present, so this gate PASSES today; it is here
@@ -229,13 +229,13 @@ $SkillSrc = Join-Path $SharedCore 'mcp_core\skills'
 $ExpectedSkills = @(Get-ChildItem -Path $SkillSrc -Directory -ErrorAction SilentlyContinue |
     Where-Object { Test-Path (Join-Path $_.FullName 'SKILL.md') })
 if ($ExpectedSkills.Count -eq 0) {
-    Write-Host 'BUILD GATE FAILED: no <skill>/SKILL.md found in mcp_core/skills — the' -ForegroundColor Red
+    Write-Host 'BUILD GATE FAILED: no <skill>/SKILL.md found in mcp_core/skills - the' -ForegroundColor Red
     Write-Host 'gate has lost its subject and cannot verify anything.' -ForegroundColor Red
     exit 1
 }
 $VerifySkills = Join-Path $AgentRoot 'spikes\verify_bundled_skills.py'
 if (-not (Test-Path $VerifySkills)) {
-    # ⚠ A gate that silently SKIPS is not a gate — this is a hard failure, not a warning.
+    # ! A gate that silently SKIPS is not a gate - this is a hard failure, not a warning.
     Write-Host "BUILD GATE FAILED: $VerifySkills is missing; skill bundling cannot be verified." -ForegroundColor Red
     exit 1
 }
@@ -247,11 +247,11 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ''
 Write-Host '=================================' -ForegroundColor Green
-Write-Host "  $description v$Version — Build Complete"
+Write-Host "  $description v$Version - Build Complete"
 Write-Host '=================================' -ForegroundColor Green
 Write-Host "  Exe: $ExePath"
 
-# ── 5. (Optional) Build Windows installer via Inno Setup ─────────────────
+# -- 5. (Optional) Build Windows installer via Inno Setup -----------------
 if ($true) {
     $ISCC = $null
     $candidates = @(
@@ -280,7 +280,7 @@ if ($true) {
     }
     else {
         # Run ISCC from repo root with relative .iss path (matching free addin pattern)
-        # ⚠ /dMCPName is the EXE stem (paracore-<MCPName>); /dMCPTitle is the display name.
+        # ! /dMCPName is the EXE stem (paracore-<MCPName>); /dMCPTitle is the display name.
         #   They differ only in case, and that is deliberate: `gen` is a filename fragment,
         #   `Paracore-Gen` is the product.
         Push-Location $AgentRoot
