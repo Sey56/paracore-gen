@@ -163,7 +163,7 @@ if "connected to Revit" not in ping:
 head = check(
     "pick a wall and capture its Comments",
     'var w = GetElements("Walls").First(); '
-    'Println("ID=" + w.Id.IntegerValue); '
+    'Println("ID=" + w.Id.Value); '
     'Println("COMMENTS=[" + w.GetStr("Comments") + "]");',
     want=["ID=", "COMMENTS=["],
 )
