@@ -26,8 +26,8 @@ and provides MCP tools for running C# code dynamically:
 ⚠ This is the **generalist** server: it generates and runs a REPL script for *any*
 Revit task. It prefers the Paracore extension methods, but the **raw Revit API, LINQ
 and .NET** are all in scope when the methods are not enough. It is deliberately not
-the deep specialist for modelling or families — those live in the sibling
-`paracore-model` and `paracore-family` MCPs.
+the deep specialist for modelling or families; those belong to separate
+domain servers.
 
 ## What a snippet can reach
 
@@ -57,7 +57,7 @@ makes; a rule that stops matching fails there, not in production.
 
 ⚠ **This list is the REPL entry point's list.** It is enforced on `execute_repl` — the path a
 chat snippet takes — by this package's scan and by the add-in's mirror. A gallery script
-submitted through `execute_script` (that is `paracore-forge`) is compiled as an installed tool
+submitted through `execute_script` is compiled as an installed tool
 and is **not** subject to the file/thread list here: `RoomFinishUpdater` writes an output CSV at
 runtime, so a blanket file ban on that path would refuse a shipped tool. What **both** paths
 share is the semantic sandbox (`ScriptSandbox`), which refuses process, network, registry,
@@ -182,16 +182,16 @@ Revit install path.
 ```
 
 Requirements: Python 3.12, Inno Setup 6. The **shared core is not in this repo** — it
-is `paracore/mcp/mcp_core`, imported as a package, so `paracore` and `paracore-gen`
-must be **sibling checkouts** under one parent directory (override with
-`PARACORE_MCP_CORE`).
+is `mcp_core` from the **`paracore-mcp-core`** repository, imported as a package,
+so `paracore`, `paracore-mcp-core` and `paracore-gen` must be **sibling checkouts**
+under one parent directory (override with `PARACORE_MCP_CORE`).
 
-Produces: `installers/Paracore-Gen-v2.1.0.exe`
+Produces: `installers/Paracore-Gen-v2.1.2.exe`
 
 ## Install
 
-1. Install the **Paracore Addin** from the [`paracore`](https://github.com/datadrivenconstruction/paracore) repo
-2. Run `installers/Paracore-Gen-v2.1.0.exe`
+1. Install the **Paracore Addin** from the [v4.8.3 release page](https://github.com/Sey56/Paracore/releases/tag/v4.8.3)
+2. Run `installers/Paracore-Gen-v2.1.2.exe`
 3. Configure Claude Desktop to use the MCP server
 
 ## Structure
@@ -215,8 +215,8 @@ a focused `SKILL.md`. They are served as **tools**, not resources: Claude Deskto
 not read MCP resources, so the agent calls `list_skills` and then `read_skill("<name>")`.
 
 ⚠ These cover the Paracore **extension methods**. Deep **modelling** and **family
-(.rfa)** recipes are NOT here — they belong to the sibling `paracore-model` and
-`paracore-family` MCPs, and this server deliberately does not ship the `create-geometry`
+(.rfa)** recipes are NOT here — they belong to separate domain servers, and
+this server deliberately does not ship the `create-geometry`
 skill that would teach them.
 
 | Skill | Covers |

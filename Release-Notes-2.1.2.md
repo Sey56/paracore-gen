@@ -4,21 +4,32 @@
 
 A provenance and correctness release. The frozen exe can now be **asked** which shared core and
 which source tree it was built from, instead of being guessed from an mtime. It also inherits the
-security and Revit 2027 work shipped in the shared core with Add-in v4.8.3.
-
-Release with **Paracore Add-in v4.8.3** — install both together.
+security and Revit 2027 work shipped with Add-in v4.8.3.
 
 > **Supersedes the published v2.1.1 (2026-10-29).** Everything in
-> [v2.1.1](Release-Notes-2.1.1.md) is included. This note covers the 8 commits since that tag.
+> [v2.1.1](Release-Notes-2.1.1.md) is included.
+
+## Download
+
+`Paracore-Gen-v2.1.2.exe` is attached to the **[Paracore v4.8.3 release page](https://github.com/Sey56/Paracore/releases/tag/v4.8.3)** alongside the desktop app, the
+Revit add-in and the VS Code extension — **one place for every installer**. The `v2.1.2` tag in
+this repo carries a pointer release with **no assets**; it exists so this repo's "Latest" badge
+does not keep pointing users at v2.1.1.
+
+Install it alongside **Paracore Add-in v4.8.3** from that same page.
 
 ## What changed in this repo
 
 ### The shared core is resolved from its own repo
 
-`paracore-mcp-core` was split out of the free engine repo into its own MIT repo. `build-gen.ps1`
-used to look for the core at the pre-move single path; it now resolves **the two sibling checkouts**.
-`mcp_server.py` and the probes/tests were updated to match. A consumer's build must never dirty
-the core, so generated identity files are written into this repo's build dir, not into the core.
+The shared Python core was split out of the `paracore` repo into **`paracore-mcp-core`**, its own
+repository. `build-gen.ps1` used to look for it at the pre-move in-repo path; it now resolves the
+sibling checkout. `mcp_server.py` and the probes/tests were updated to match. A consumer's build
+must never dirty the core, so generated identity files are written into this repo's build dir, not
+into the core.
+
+⚠ Any older note that says this server imports `paracore/mcp` describes the **pre-split** layout
+and is out of date. The import is `mcp_core`, from the `paracore-mcp-core` repository.
 
 ### The exe carries its own provenance
 
@@ -40,20 +51,26 @@ install + restart. The hash turns that from a thing to remember into a thing the
 
 ## Inherited from the shared core (Add-in v4.8.3)
 
-This server imports `paracore/mcp` rather than carrying a copy, so these apply without a line of
-gen-specific code:
+This server imports `mcp_core` from `paracore-mcp-core` rather than carrying a copy, so these
+apply without a line of gen-specific code:
 
 - **Dangerous machine capabilities are refused at compile time**, and file access is confined to one workspace.
 - **Scan bypasses are closed** in the add-in's instance-form layer, and a refused script no longer hands out the recipe it was refused for.
 - **Qualified type names no longer walk past the security scan** (`new System.Threading.Thread(` where `new Thread(` was refused), and the scans no longer read comments or string literals as prose.
 - **Revit 2027 works.** One `net8.0-windows` payload, a shim-level `Default.Resolving` guard that stops a second `CoreScript.Engine.dll` loading into `Default`, and the moved 2027 all-users `.addin` path. No .NET 10 retarget.
 
+## Related repositories (for building from source)
+
+- **`paracore`** — the free engine, the Revit add-in, and the generated `EXTENSION_METHODS.md` surface that this server's skills are pinned to. Releases every installer, including this one.
+- **`paracore-mcp-core`** — the shared MCP framework imported as `mcp_core`. It is a library, not an installer; nothing here is installed on its own.
+
+`build-gen.ps1` expects these as sibling checkouts; override with `PARACORE_MCP_CORE` if they are
+elsewhere. `scripts/Set-Version.ps1` in the `paracore` repo is never called from here.
+
 ## Versioning
 
-Each sibling MCP versions itself from its own root `VERSION` via its own `Set-Version.ps1`.
-`paracore-gen` is **2.1.2**; `paracore-model`, `-family`, `-forge` and `-takeoff` stay at **2.0.0**.
-The `paracore` engine + add-in + desktop + VS Code extension version as one unit and are at
-**4.8.3** — `paracore/scripts/Set-Version.ps1` is never called from here.
+`paracore-gen` versions itself from its own root `VERSION` via its own `Set-Version.ps1`; this
+release is **2.1.2**. `paracore` versions as one unit and is at **4.8.3**.
 
 ⚠ The `v4.7.0` tag in this repo is a legacy artifact from when this project was named
 `paracore-mcp`. It is not on the 2.x line and does not represent a release of this server.
@@ -64,6 +81,8 @@ The `paracore` engine + add-in + desktop + VS Code extension version as one unit
 |---|---|
 | `Set-Version.ps1 -Check` (`VERSION`, `pyproject.toml`, `uv.lock`) | all at 2.1.2 |
 | `build-gen.ps1` | bakes `CORE_VERSION` + `SOURCE_HASH` into the exe |
+| `Paracore-Gen-v2.1.2.exe` ProductVersion | 2.1.2 |
+| frozen exe identity | `CORE_VERSION=9d414e1`, `SOURCE_HASH=ce1dc75252a24918` |
 | engine-regression probe | uses `ElementId.Value` (Revit 2027) |
 
 ⚠ A version bump alone does **not** produce a shippable exe: `build-gen.ps1` must be re-run so
@@ -71,5 +90,5 @@ the `2.1.2` product version and the fresh source hash are baked into the frozen 
 
 ## Requirements
 
-- **Paracore Add-in v4.8.3** — released together; the shared core in this build expects it
+- **Paracore Add-in v4.8.3** — from the same release page
 - Windows x64

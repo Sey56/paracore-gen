@@ -2,18 +2,18 @@
 
 Full notes: [Release-Notes-2.1.2.md](Release-Notes-2.1.2.md) · Previous: [v2.1.1](https://github.com/Sey56/paracore-gen/releases/tag/v2.1.1)
 
-Install with **Paracore Add-in v4.8.3** — released together.
+Download: **[Paracore v4.8.3 release page](https://github.com/Sey56/Paracore/releases/tag/v4.8.3)** — all four installers, including `Paracore-Gen-v2.1.2.exe`, are on that one page. This repo's `v2.1.2` release is a pointer with no assets.
 
 A provenance release. The frozen exe now carries **`CORE_VERSION`** (which shared core it contains)
 and **`SOURCE_HASH`** (a hash of this repo's **tracked** `.py` files, so edits to `mcp_server.py`
 cannot hide behind a core pin). Both are baked with no timestamp, so a byte-comparing gate does not
-go red on every rebuild. `build-gen.ps1` resolves the shared core from its own repo — the **two**
-sibling checkouts, not the pre-move single path. The spec now says this repo is **PUBLIC (MIT)**.
+go red on every rebuild. `build-gen.ps1` resolves the shared core from `paracore-mcp-core`, its
+own repository — not the pre-move in-repo path. The spec now says this repo is **PUBLIC (MIT)**.
 
 Through the shared core it inherits Add-in 4.8.3's compile-time capability refusal,
 workspace-confined file access, closed scan bypasses and **Revit 2027 support**.
 
-> 📖 Full details: **[Paracore v4.8.3](https://github.com/Sey56/Paracore/releases)** · **[Paracore-Gen v2.1.2](https://github.com/Sey56/paracore-gen/releases)**
+> 📖 Technical notes: [Release-Notes-2.1.2.md](Release-Notes-2.1.2.md) · [All downloads](https://github.com/Sey56/Paracore/releases/tag/v4.8.3)
 
 ---
 
@@ -31,7 +31,7 @@ Install with **Paracore Add-in v4.8.2** — released together.
 
 ### It no longer teaches modelling
 
-`paracore-gen` generates REPL code against the raw Revit API, LINQ and the Paracore DSL. It does not model — `paracore-model` is the server that does. `create-geometry` was still in **this** server's skill catalogue, so the agent was taught a workflow this server cannot support and pointed at sibling servers it does not have. It is now filtered out of gen's catalogue only; the skill stays in the shared core for the servers that model. **Eight method skills here, not nine.**
+`paracore-gen` generates REPL code against the raw Revit API, LINQ and the Paracore DSL. It does not model. `create-geometry` was still in **this** server's skill catalogue, so the agent was taught a workflow this server cannot support. It is now filtered out of gen's catalogue only; the skill stays in the shared core for the servers that do model. **Eight method skills here, not nine.**
 
 ### The build proves it shipped its skills
 
@@ -47,7 +47,7 @@ The guidance moved from this server's intro into the **shared** `COMMON_RULES`, 
 
 ### Inherited from the shared core (Add-in v4.8.2)
 
-This server imports `paracore/mcp` rather than carrying a copy, so these apply here without a line of gen-specific code:
+This server imports `mcp_core` from `paracore-mcp-core` rather than carrying a copy, so these apply here without a line of gen-specific code:
 
 - **A qualified type name no longer walks past the security scan** — `new System.Threading.Thread(` executed where `new Thread(` was refused. Measured, then fixed in all three lists (dangerous patterns, read-only guard, file/network policy) by blanking the namespace prefix before any rule runs, so any pattern added later inherits it. `global::` covered too.
 - **The scans no longer read prose** — a comment mentioning `new Transaction(Doc)` refused a correct read-only query. Comments and string literals are blanked first, in both layers. Fixing only the Python layer left the add-in refusing the same query one layer down; that is how the second half was found.
