@@ -58,8 +58,8 @@ makes; a rule that stops matching fails there, not in production.
 ⚠ **This list is the REPL entry point's list.** It is enforced on `execute_repl` — the path a
 chat snippet takes — by this package's scan and by the add-in's mirror. A gallery script
 submitted through `execute_script` is compiled as an installed tool
-and is **not** subject to the file/thread list here: `RoomFinishUpdater` writes an output CSV at
-runtime, so a blanket file ban on that path would refuse a shipped tool. What **both** paths
+and is **not** subject to the file/thread list here: an installed tool may legitimately write an
+output file at runtime, so a blanket file ban on that path would refuse it. What **both** paths
 share is the semantic sandbox (`ScriptSandbox`), which refuses process, network, registry,
 native code and reflection at the symbol level regardless of caller — measured on both entry
 points, not assumed. **That is the boundary; this list is the filter on top of it.**
@@ -147,8 +147,8 @@ so a comment that says "never call `Process.Start`" is not itself a violation. (
     `OpenDocumentFile`, `LoadFamily`, `Import`. Revit performs those writes itself, so no
     reference-set rule can see them; they would be the last route out. `ExportImage(...)`, the
     engine helper, is *allowed* because it routes its target through the same guard.
-  - A **gallery tool** run from the desktop app still has full file access — `RoomFinishUpdater`
-    reads a CSV and writes one, and that is the product working.
+  - A **gallery tool** run from the desktop app still has full file access — an installed tool
+    may read and write its own output files, and that is the product working.
   - ⚠ This is a **channel** distinction (which gRPC entry point), not a trust level attached to
     the `source` string. See `ScriptSandbox.ReplChannel` and
     `ExecutionGlobals.ConfineFileAccess`.
@@ -157,7 +157,7 @@ so a comment that says "never call `Process.Start`" is not itself a violation. (
   `System.IO` refusal is **not** keyed on `source`: it is a property of the `execute_repl` entry
   point, so a snippet *you* type there has no file access either. That is deliberate — the
   desktop app runs saved scripts and gallery tools through `execute_script`, which keeps full
-  file access, so `RoomFinishUpdater` (reads a CSV, writes one) is unaffected.
+  file access, so an installed tool that reads and writes its own CSV is unaffected.
 
 ### Known limits, stated rather than implied
 

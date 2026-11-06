@@ -162,20 +162,24 @@ def test_the_file_policy_claim_is_scoped_to_the_repl_path():
     """MEASURED 2026-11-01: `File.WriteAllText` on a writable path.
 
     - `execute_repl`   -> refused ("Blocked by the Paracore agent file policy")
-    - `execute_script` -> the file was WRITTEN (paracore-forge's entry point)
+    - `execute_script` -> the file was WRITTEN
 
-    That asymmetry is deliberate: `paracore-gallery/04_Advanced/RoomFinishUpdater` writes an
-    output CSV at runtime, so a blanket file ban on `execute_script` would refuse a shipped
-    tool. What must NOT happen is the README claiming one list covers both paths — that is the
-    same defect class as putting a check on a path the agent never takes.
+    That asymmetry is deliberate: an installed gallery tool writes an output CSV at runtime, so
+    a blanket file ban on `execute_script` would refuse it. What must NOT happen is the README
+    claiming one list covers both paths — that is the same defect class as putting a check on a
+    path the agent never takes.
     """
     text = open(README, encoding="utf-8").read()
     assert "REPL entry point's list" in text, (
         "README.md must scope the file/thread list to execute_repl — it is NOT enforced on "
-        "execute_script (paracore-forge), where a gallery script legitimately writes files"
+        "execute_script, where a gallery script legitimately writes files"
     )
-    assert "execute_script" in text and "paracore-forge" in text, (
-        "README.md must name the entry point the list does not cover"
+    # ⚠ RETARGETED 2026-11-06: this anchor used to require the literal `paracore-forge` in
+    #   README.md. The public release docs were scrubbed of internal product names, so the
+    #   anchor rotted and the test went red on a WORDING change, not a behaviour change.
+    #   Retarget, never delete: assert the entry point AND the reason it keeps file access.
+    assert "execute_script" in text and "installed tool" in text.lower(), (
+        "README.md must name the entry point the list does not cover and say what runs there"
     )
     assert "That is the boundary; this list is the filter" in text, (
         "README.md must name the semantic sandbox as the boundary shared by both paths"
