@@ -1,6 +1,6 @@
 # Paracore-Gen v2.1.2
 
-**The MCP server that generates REPL code for Revit. Requires Paracore Add-in v4.8.3.**
+**The generalist MCP server for Revit — it writes REPL code and runs it; there is no separate run step. Requires Paracore Add-in v4.8.3.**
 
 A provenance and correctness release. The frozen exe can now be **asked** which shared core and
 which source tree it was built from, instead of being guessed from an mtime. It also inherits the
