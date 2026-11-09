@@ -8,15 +8,13 @@ core. Release with **Paracore Add-in v4.8.2** — install both together.
 
 ## What changed
 
-### It no longer teaches modelling
+### The modelling skill is out of the catalogue
 
-`paracore-gen` generates REPL code against the raw Revit API, LINQ and the Paracore DSL. It does
-not model — `paracore-model` is the server that does. `create-geometry` was still in this server's
-skill catalogue, so the agent was being taught a workflow this server cannot support and pointed at
-sibling servers it does not have.
+`paracore-gen` generates REPL code against the raw Revit API, LINQ and the Paracore DSL. Its skill
+catalogue still listed `create-geometry`, which pointed at sibling servers this one does not ship.
 
-It is now filtered out of **gen's** catalogue only. The skill stays in the shared core, because the
-servers that model still use it. Eight method skills in this server, not nine.
+The skill is now filtered out of **gen's** catalogue only. It stays in the shared core, because
+other consumers still use it. Eight method skills in this server, not nine.
 
 ### The build proves it shipped its skills
 

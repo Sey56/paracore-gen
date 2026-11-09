@@ -215,15 +215,15 @@ taught a call which does not compile, and a handful of cosmetic drifts.
   the complete ~17,000-character catalogue. The head is now cut on a section boundary and says so:
   it names the character count and tells the caller to pass a query for one method or section.
 
-- **`create-geometry` pointed at three skills this server does not have** (`project-modeling`,
-  `paracore-model`, `family-authoring`). It now inlines the two recipes it was pointing at, and
-  says `list_skills` is the authoritative list of what *this* server teaches — if a recipe is not
-  among them, it is not here.
+- **`create-geometry` pointed at skills this server does not have** (`project-modeling`,
+  `family-authoring`) and at a sibling server. It now inlines the two recipes it was pointing at,
+  and says `list_skills` is the authoritative list of what *this* server teaches — if a recipe is
+  not among them, it is not here.
 
 - ⚠ **The same dead pointer was in the live system prompt, and every gate was green.** Fixing
-  `create-geometry` left `mcp_server.GEN_INTRO` still telling the model that "the `paracore-model`
-  and `paracore-family` MCPs are the specialists" — and `GEN_INTRO` is not a skill and not a
-  prompt file: it is the block concatenated into `build_instructions()` and delivered on every
+  `create-geometry` left `mcp_server.GEN_INTRO` still pointing the model at two sibling specialist
+  servers — and `GEN_INTRO` is not a skill and not a prompt file: it is the block concatenated
+  into `build_instructions()` and delivered on every
   session, i.e. the most-read text in the product. The reference gates all scanned `skills/` and
   `prompts/`, so the defect was invisible to them. There is now a gate on the **delivered string**
   (`tests/test_skill_references.py::TestLiveInstructions`, teeth proved by reintroducing the
@@ -232,13 +232,12 @@ taught a call which does not compile, and a handful of cosmetic drifts.
 
 ### The skill set was wrong for this server, and stale files were keeping it wrong
 
-`paracore-model` is what models. `paracore-gen` is the generalist: it does its work by
-generating REPL on the fly, with full access to the raw Revit API, LINQ and the Paracore DSL,
-and `GEN_INTRO` states which to prefer. So this server no longer ships `create-geometry` — the
-skill is filtered out of its catalogue (`Domain.shared_skills`), not deleted, because
-`paracore-model` and `paracore-family` still need it. Its catalogue is now exactly the eight
-non-modelling method skills, and a gate asserts the two halves together: absent here, still
-present in the core.
+`paracore-gen` is the generalist: it does its work by generating REPL on the fly, with full
+access to the raw Revit API, LINQ and the Paracore DSL, and `GEN_INTRO` states which to prefer.
+So this server no longer ships `create-geometry` — the skill is filtered out of its catalogue
+(`Domain.shared_skills`), not deleted, because the shared core still carries it for other
+consumers. Its catalogue is now exactly the eight non-modelling method skills, and a gate asserts
+the two halves together: absent here, still present in the core.
 
 That change exposed the real cause of a week of confusing reviews: **nothing is deleted when an
 implementation is replaced.** `prompt_assembler.build_prompt()` assembled ten `prompts/*.md`
@@ -263,7 +262,7 @@ them would have lost content rather than tidied it:
   documented way to ask. `get_globals` is a **tool** now (5,373 characters), and the resource
   stays for clients that do read them.
 
-`paracore-family` lost its three prompt overrides and its copies of the same files, and
+A sibling consumer lost its three prompt overrides and its copies of the same files, and
 `SKILLS.md` was removed from this repo: it is generated from the full shared set, so it could
 not see the Domain's filter — the moment `create-geometry` was dropped, the file still listed it
 and still said "nine". A generated doc that cannot see the filter is a second copy of the truth,
@@ -453,9 +452,9 @@ catalog the message promised.
 
 ### Dead references to products this server does not ship
 
-`create-geometry` told the reader to run `read_skill("project-modeling")`, and pointed at a
-`paracore-model` and a `paracore-family` MCP. Neither is in this catalogue and neither is obtainable
-by a public reader — the call simply fails.
+`create-geometry` told the reader to run `read_skill("project-modeling")`, and pointed at two
+specialist MCPs that this server does not ship. Neither is in this catalogue and neither is
+obtainable by a public reader — the call simply fails.
 
 - The pointers are gone. What was worth keeping is stated inline: build a building **per level**
   (levels → slab → walls → rooms, then the next level), and a `Form` cannot become a wall, floor or

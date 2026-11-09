@@ -7,10 +7,8 @@ resources, the dialog watcher, the metrics, the C# lint — is the SHARED CORE i
 split, and why the skills are served as TOOLS rather than resources.
 
 ⚠ paracore-gen has NO domain skills of its own: it is the generalist, so the SHARED method
-skills ARE its whole set — MINUS `create-geometry`. Modelling belongs to `paracore-model`;
-this server generates REPL on the fly against the raw Revit API, LINQ and the DSL, and
-`GEN_INTRO` states which to prefer. That is the difference between this file and
-paracore-model's.
+skills ARE its whole set — MINUS `create-geometry`. It generates REPL on the fly against the
+raw Revit API, LINQ and the DSL, and `GEN_INTRO` states which to prefer.
 """
 
 # ── Locate the SHARED MCP CORE — the one in the engine repo (`paracore/mcp`) ──────
@@ -96,11 +94,10 @@ GEN_INTRO = """THIS SERVER IS THE GENERALIST — you write and run REPL scripts 
   After every build, re-derive counts and read Doc.GetWarnings()."""
 
 # ── The skill set: the shared method skills, MINUS modelling ──────────────────
-# ⚠⚠ `create-geometry` is NOT here (operator, 2026-10-27). **`paracore-model` is what
-#   models.** This server's job is to generate REPL on the fly, with full access to the raw
-#   Revit API, LINQ and the Paracore DSL — `GEN_INTRO` states which to prefer. A modelling
-#   curriculum in the generalist both duplicates paracore-model and reads as a claim that
-#   this server specialises in modelling.
+# ⚠⚠ `create-geometry` is NOT in this catalogue. This server's job is to generate REPL on
+#   the fly, with full access to the raw Revit API, LINQ and the Paracore DSL — `GEN_INTRO`
+#   states which to prefer. A fixed modelling curriculum here would read as a claim that
+#   this server specialises in one kind of task.
 #   The other eight ARE the DSL vocabulary the generalist writes in, so they stay.
 # ⚠ This filters the CATALOGUE only. The file still lives in the shared core, for the
 #   domains that do model — see `Domain.shared_skills` in mcp_core/domain.py.

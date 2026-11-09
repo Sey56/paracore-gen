@@ -1,42 +1,27 @@
 # PROJECT_SPEC.md — paracore-gen
 
-## 0. ⚠⚠ READ THE MASTER SPEC FIRST
+## 0. Where the API authority lives
 
-This repo is **one project in the Paracore ecosystem**. It is **not self-contained**, and it is
-**not** the top authority.
-
-Before changing anything here, read:
-
-```
-C:\Users\seyou\Paracore\paracore-ecosystem\MASTER_SYSTEM_SPEC.md
-```
-
-It lives **outside every project repo** — in the `paracore-ecosystem` repo, a **sibling** of this
-one. The sections that bind this repo: **§3** (the artifact authority table), **§4** (the change
-classes) and **"PRODUCT NAMING"** (the four naming surfaces).
-
-⚠ **If that file is not present, STOP and ask for it. Do not infer the cross-project rules.**
-⚠ This is a **pointer, not a copy** — the master's rules are deliberately not repeated here.
+This server is a **consumer** of the engine's public API. The API's authority is
+`EXTENSION_METHODS.md` and `REPL_GUIDE.md` in the public `paracore` repo; the copies in this
+repo are generated. When a copy disagrees with the authority, fix the authority and regenerate.
 
 ---
 
 ## 1. What this project is
 
 The **generalist MCP server** — product name **`Paracore-Gen`**: it lets an AI drive Revit through
-the engine's REPL. A separate product from the takeoff tool, and the **shared Python core** other
-MCPs borrow from.
+the engine's REPL. It is built on the shared Python MCP framework published as
+`paracore-mcp-core`.
 
 ⚠ **Generalist, not a specialist.** Its job is to *generate and run a REPL script for any Revit
-task*, not to be the deep expert on one. It teaches the nine Paracore **extension-method** skills
-and may drop to the **raw Revit API, LINQ and .NET** when those methods are not enough. The deep
-**modelling** and **family / conceptual-mass** recipes live in the sibling **`paracore-model`** and
-**`paracore-family`** MCPs — this repo carries neither, and its `skills/` is exactly the nine
-method skills.
+task*; there is no fixed menu of operations, so the code for each request is written at that
+moment. It serves the shared Paracore **extension-method** skills and may drop to the
+**raw Revit API, LINQ and .NET** when those methods are not enough.
 
-⚠⚠ **The name is `paracore-gen` on EVERY surface** (renamed 2026-10-09, from `paracore-mcp`): the
-repo, `build-gen.ps1`, `paracore-gen.iss`, the exe, the installer, `UninstallDisplayName`, the
-`FastMCP(...)` handshake and the client's config key. There is no longer a product-name-vs-exe-name
-split. The surfaces and the migration are pinned in the master spec's **"PRODUCT NAMING"**.
+⚠⚠ **The name is `paracore-gen` on EVERY surface**: the repo, `build-gen.ps1`,
+`paracore-gen.iss`, the exe, the installer, `UninstallDisplayName`, the `FastMCP(...)`
+handshake and the client's config key. Change them together, never one at a time.
 
 ⚠ Other MCPs address this repo **by name, never by position** — `PARACORE_GEN_HOME` with an absolute
 default. A hard-coded `..\..\..\paracore-gen` climb silently misses when a caller moves.
@@ -73,7 +58,7 @@ default. A hard-coded `..\..\..\paracore-gen` climb silently misses when a calle
 ## 4. Not here
 
 - No engine source. This repo is a **consumer** of the engine's public API.
-- ⚠ **No specialist skills.** `skills/` is the nine generalist method skills only — no
-  `project-modeling`, `annotations-dimensions`, `family-authoring` or `massing-forms`. Those belong
-  to **`paracore-model`** / **`paracore-family`**; a copy here is drift.
+- ⚠ **No specialist skills.** This server declares no domain skills of its own — no
+  `project-modeling`, `annotations-dimensions`, `family-authoring` or `massing-forms`.
+  A copy here is drift.
 - ⚠ Nothing in this file is private. Keep it that way: **this repo is PUBLIC**.

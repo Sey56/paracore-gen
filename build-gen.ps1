@@ -21,7 +21,7 @@ if (-not $Version) {
 #   $mcpName drives the PyInstaller --name (=> dist\paracore-gen.exe + paracore-gen.spec),
 #   the icon path, InternalName and OriginalFilename. Change it and you MUST change
 #   paracore-gen.iss, mcp_server.py's FastMCP() and the client's mcp.json to match -
-#   the surfaces are pinned in paracore-ecosystem/MASTER_SYSTEM_SPEC.md ("PRODUCT NAMING").
+#   change every surface together or the installer and the client config disagree.
 $mcpName = "paracore-gen"
 $description = "Paracore-Gen"
 

@@ -54,11 +54,11 @@ with one test, agreed before the round starts.**
 |---|---|---|
 | `paracore` engine + add-in | the CoreScript runtime, the REPL, the write-safety envelope | **yes** |
 | `paracore-gen` MCP | the generalist tool surface an agent drives Revit through | **yes** |
-| `paracore-model` / `-family` / `-forge` / `-takeoff` MCP | four sibling exes | **no** — operator decision: *"only i use them for now. they have their own time to be adjusted"* |
+| Other MCP servers | sibling exes | **no** — out of scope for this release |
 
 `paracore-gen` is the only consumer being released, so it is the only consumer tested. A defect
 that exists only in a sibling is out of scope by decision, not by oversight — and the `mcp-exes`
-gate will report those four as stale for exactly that reason.
+gate will report those as stale for exactly that reason.
 
 ## 3. The criterion
 

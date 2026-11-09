@@ -10,7 +10,7 @@ __pycache__/
 .vscode/
 .idea/
 .claude/
-# Agent state (session memory + skills) — local only. Same rule as paracore-pro.
+# Agent state (session memory + skills) — local only.
 .workbuddy-ai/
 
 # OS

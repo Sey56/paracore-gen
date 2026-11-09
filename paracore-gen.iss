@@ -12,8 +12,7 @@
 ;   throughout — so the repo, the exe, the installer and Programs and Features all
 ;   disagreed. They are now all `paracore-gen` / `Paracore-Gen`: repo, build script,
 ;   exe, installer, display name, MCP handshake AND the client's config key.
-;   The naming surfaces are pinned in paracore-ecosystem/MASTER_SYSTEM_SPEC.md
-;   ("PRODUCT NAMING") — change them together, never one at a time.
+;   Change the naming surfaces together, never one at a time.
 ;
 ; ⚠ AppId is DELIBERATELY UNCHANGED across the rename. It is the product identity
 ;   for install/upgrade/uninstall, so keeping it makes this installer UPGRADE the
