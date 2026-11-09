@@ -2,6 +2,8 @@
 
 An MCP server that lets an AI assistant read and change an open Revit model. The assistant connects through Claude Desktop, Cursor, VS Code or any MCP client; Paracore-Gen talks to the Paracore Addin inside Revit over gRPC on `localhost:50051` and runs C# against the live project.
 
+It has no fixed task tools. For each request the assistant generates a C# script and runs it against the live model, using Paracore's extension methods, LINQ or the raw Revit API as needed. The conversation happens in the client the user prefers — Claude Desktop, Cursor, VS Code or any MCP client.
+
 It is an optional, separate installer. The desktop app and the REPL work without it.
 
 ## Install
