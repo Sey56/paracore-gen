@@ -1,3 +1,19 @@
+## Paracore-Gen v2.1.3 (November 2026) — inherited fixes, exact numbers
+
+Full notes: [Release-Notes-2.1.3.md](Release-Notes-2.1.3.md) · Previous: [v2.1.2](https://github.com/Sey56/paracore-gen/releases/tag/v2.1.2)
+
+Download: **[Paracore v4.8.4 release page](https://github.com/Sey56/Paracore/releases/tag/v4.8.4)** — all four installers, including `Paracore-Gen-v2.1.3.exe`, are on that one page. This repo's `v2.1.3` release is a pointer with no assets.
+
+This repo's own runtime code changed only in comments. Everything functional is inherited from
+`paracore-mcp-core`: bulk-write advisories now fire only for a proven collection receiver, a
+dialog note is never lost (the blocking modal and persistent `Doc.GetWarnings()` failures are
+taught as two separate channels), and the `GetType().Name` sandbox refusal now comes with a
+usable hint. The generated engine docs are synced to Paracore 4.8.4's one-rounding-rule change.
+
+> 📖 Technical notes: [Release-Notes-2.1.3.md](Release-Notes-2.1.3.md) · [All downloads](https://github.com/Sey56/Paracore/releases/tag/v4.8.4)
+
+---
+
 ## Paracore-Gen v2.1.2 (November 2026) — The Exe Can Prove What It Is
 
 Full notes: [Release-Notes-2.1.2.md](Release-Notes-2.1.2.md) · Previous: [v2.1.1](https://github.com/Sey56/paracore-gen/releases/tag/v2.1.1)

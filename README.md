@@ -8,8 +8,8 @@ It is an optional, separate installer. The desktop app and the REPL work without
 
 ## Install
 
-1. Install the **Paracore Addin** from the [v4.8.3 release page](https://github.com/Sey56/Paracore/releases/tag/v4.8.3), open Revit and switch the Paracore server ON in the ribbon.
-2. Run `Paracore-Gen-v2.1.2.exe` from the same release page. It installs `paracore-gen.exe` into `%APPDATA%\paracore-data\mcp-servers\`.
+1. Install the **Paracore Addin** from the [v4.8.4 release page](https://github.com/Sey56/Paracore/releases/tag/v4.8.4), open Revit and switch the Paracore server ON in the ribbon.
+2. Run `Paracore-Gen-v2.1.3.exe` from the same release page. It installs `paracore-gen.exe` into `%APPDATA%\paracore-data\mcp-servers\`.
 3. Add the server to your MCP client config, using `paracore-gen` as the key and the installed exe as `command`. No arguments are needed. Restart the client.
 
 | Client | Config file |
@@ -44,7 +44,7 @@ Requirements: Python 3.12, uv, Inno Setup 6, and sibling checkouts of `paracore`
 ./build-gen.ps1
 ```
 
-Produces `dist/paracore-gen.exe` and `installers/Paracore-Gen-v2.1.2.exe`.
+Produces `dist/paracore-gen.exe` and `installers/Paracore-Gen-v2.1.3.exe`.
 
 ## Documentation
 
