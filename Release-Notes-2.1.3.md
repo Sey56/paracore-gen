@@ -3,17 +3,27 @@
 **The generalist MCP server for Revit — it writes REPL code and runs it; there is no separate run
 step. Requires Paracore Add-in v4.8.4.**
 
-An inherited-fixes release. This repo's own runtime code did not change behaviour: everything
-functional comes from `paracore-mcp-core`, whose dialog handling, bulk-write advisory and sandbox
-guidance were corrected. The generated engine reference is synced to Paracore 4.8.4's
-one-rounding-rule change.
+An inherited-fixes release. This repo's own runtime code did not change behaviour: the functional
+changes come from `paracore-mcp-core` and from the `paracore/mcp/grpc_client.py` wire client
+bundled into the exe. Dialog handling, bulk-write advisory, sandbox guidance and the
+`ExecuteScript` watcher gate were corrected. The generated engine reference is synced to Paracore
+4.8.4's one-rounding-rule change.
+
+> **⚠ Product boundary.** Paracore-Gen is a **different product** from the Paracore add-in /
+> engine. Sandboxing / capability refusal, the consent gate, workspace confinement, the read-only
+> guard, the dangerous-pattern scan, bulk-write advisories and the dialog watcher belong **here**,
+> to the MCP server, its wire client and its shared core — not to the add-in. The
+> [Paracore v4.8.4 release page](https://github.com/Sey56/Paracore/releases/tag/v4.8.4) keeps the
+> two products in separate parts: **Part A = Paracore**, **Part B = Paracore-Gen**. The older
+> v4.8.3 page did not make that distinction.
 
 > **Supersedes the published v2.1.2 (2026-11-06).** Everything in
 > [v2.1.2](https://github.com/Sey56/paracore-gen/blob/main/Release-Notes-2.1.2.md) is included,
 > including the exe-provenance work (`CORE_VERSION` and `SOURCE_HASH`).
 >
-> **Complete inventory of all 10 commits in this repo: [§4](#4-complete-commit-inventory).** The
-> shared core's 6 commits are inventoried in the
+> **Complete inventory of the 10 release-window commits in this repo: [§4](#4-complete-commit-inventory).**
+> The product-split documentation commit carrying this note is metadata-only. The shared core's 6
+> commits are inventoried in the
 > [Paracore 4.8.4 technical notes](https://github.com/Sey56/Paracore/blob/main/Release-Notes-4.8.4.md#6-complete-commit-inventory).
 
 ## 1. Download
@@ -26,13 +36,23 @@ does not keep pointing users at v2.1.2.
 
 Install it alongside **Paracore Add-in v4.8.4** from that same page.
 
-## 2. What changed in this repo
+## 2. What changed
 
-Nothing in the executable's behaviour. `mcp_server.py`, `build-gen.ps1` and `paracore-gen.iss`
-changed only in comments — references to a private specification were removed from the public
-repo, and the description of the generalist's skill catalogue was clarified. The README,
-`PROJECT_SPEC.md`, `Docs/RELEASE_ACCEPTANCE.md` and older release notes were rewritten for the
-public repo.
+### In this repo
+
+This repo's own runtime code changed only in comments. `mcp_server.py`, `build-gen.ps1` and
+`paracore-gen.iss` changed only in comments — references to a private specification were removed
+from the public repo, and the description of the generalist's skill catalogue was clarified. The
+README, `PROJECT_SPEC.md`, `Docs/RELEASE_ACCEPTANCE.md` and older release notes were rewritten for
+the public repo.
+
+### Bundled MCP wire client
+
+`paracore/mcp/grpc_client.py` is part of the frozen exe's runtime. `execute_script` now opens the
+dialog-watcher in-flight gate over `ExecuteScript` (Forge does not use `ExecuteRepl`), so a Revit
+modal cannot block an agent's own call with the watcher idle. A new
+`scripts/check-warning-awareness.py` gate fails on an empty scan, and this repo's
+`tests/test_dialog_watcher_gate.py` pins both halves of the behaviour.
 
 Two verification assets did change:
 
@@ -88,7 +108,8 @@ without a line of gen-specific code. The shared core is tagged `release-4.8.4` a
 
 ## 4. Complete commit inventory
 
-Baseline: `v2.1.2` = `e0b6334`. **10 commits.**
+Baseline: `v2.1.2` = `e0b6334`. **10 release-window commits.** The product-split documentation
+commit that carries this note is metadata-only and changes no runtime source.
 
 | commit | date | change |
 |---|---|---|

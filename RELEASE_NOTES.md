@@ -4,11 +4,19 @@ Full notes: [Release-Notes-2.1.3.md](Release-Notes-2.1.3.md) · Previous: [v2.1.
 
 Download: **[Paracore v4.8.4 release page](https://github.com/Sey56/Paracore/releases/tag/v4.8.4)** — all four installers, including `Paracore-Gen-v2.1.3.exe`, are on that one page. This repo's `v2.1.3` release is a pointer with no assets.
 
-This repo's own runtime code changed only in comments. Everything functional is inherited from
-`paracore-mcp-core`: bulk-write advisories now fire only for a proven collection receiver, a
-dialog note is never lost (the blocking modal and persistent `Doc.GetWarnings()` failures are
-taught as two separate channels), and the `GetType().Name` sandbox refusal now comes with a
-usable hint. The generated engine docs are synced to Paracore 4.8.4's one-rounding-rule change.
+This repo's own runtime code changed only in comments. The functional changes come from
+`paracore-mcp-core` and from the `paracore/mcp/grpc_client.py` wire client bundled into the exe:
+bulk-write advisories now fire only for a proven collection receiver, a dialog note is never lost
+(the blocking modal and persistent `Doc.GetWarnings()` failures are taught as two separate
+channels), the `GetType().Name` sandbox refusal comes with a usable hint, and `execute_script`
+opens the dialog-watcher in-flight gate over `ExecuteScript`. The generated engine docs are synced
+to Paracore 4.8.4's one-rounding-rule change.
+
+> **⚠ Product boundary.** Paracore-Gen is a different product from the Paracore add-in / engine.
+> Sandboxing, capability refusal, the consent gate, workspace confinement, the read-only guard,
+> dangerous-pattern scans, bulk-write advisories and the dialog watcher are MCP / Part B concerns.
+> The [v4.8.4 release page](https://github.com/Sey56/Paracore/releases/tag/v4.8.4) keeps
+> **Part A — Paracore** and **Part B — Paracore-Gen** separate.
 
 > 📖 Technical notes: [Release-Notes-2.1.3.md](Release-Notes-2.1.3.md) · [All downloads](https://github.com/Sey56/Paracore/releases/tag/v4.8.4)
 
