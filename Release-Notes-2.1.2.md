@@ -37,7 +37,7 @@ Two values are baked into the frozen exe **as data**, with no timestamp (a byte-
 would otherwise go red on every rebuild for no reason):
 
 - **`CORE_VERSION`** — the identity of the shared core inside this exe. The exe can be asked which core it contains instead of the answer being inferred from an mtime.
-- **`SOURCE_HASH`** — a hash of this repo's **tracked** `.py` files, so the exe check can detect edits to `mcp_server.py`, `forge_core/` and the rest that a core pin and asset checks are blind to. Throwaway files are excluded.
+- **`SOURCE_HASH`** — a hash of this repo's **tracked** `.py` files, so the exe check can detect edits to `mcp_server.py`, the former in-repo core path and the rest that a core pin and asset checks are blind to. Throwaway files are excluded.
 
 This matters because an MCP is a **frozen exe**: a `.py` or `.md` edit is inert until rebuild +
 install + restart. The hash turns that from a thing to remember into a thing the gate can prove.

@@ -49,7 +49,7 @@ the public repo.
 ### Bundled MCP wire client
 
 `paracore/mcp/grpc_client.py` is part of the frozen exe's runtime. `execute_script` now opens the
-dialog-watcher in-flight gate over `ExecuteScript` (Forge does not use `ExecuteRepl`), so a Revit
+dialog-watcher in-flight gate over `ExecuteScript` (the MCP caller does not use `ExecuteRepl`), so a Revit
 modal cannot block an agent's own call with the watcher idle. A new
 `scripts/check-warning-awareness.py` gate fails on an empty scan, and this repo's
 `tests/test_dialog_watcher_gate.py` pins both halves of the behaviour.
@@ -58,7 +58,7 @@ Two verification assets did change:
 
 - **New `tests/test_dialog_watcher_gate.py`** pins the two silent halves of the watcher:
   `revit_call()` sets and clears the in-flight flag (including when the body throws), the gRPC stub
-  call runs **inside** the gate over `ExecuteScript` (Forge does **not** use `ExecuteRepl`), a
+  call runs **inside** the gate over `ExecuteScript` (the MCP caller does **not** use `ExecuteRepl`), a
   process with no resident watcher opens no gate, a record exists **while** `click()` is still
   confirming the close, `single_flight` never discards a late record, and two identical dialog
   instances produce two messages in the note.
@@ -98,8 +98,8 @@ without a line of gen-specific code. The shared core is tagged `release-4.8.4` a
   `System.Reflection.MemberInfo`, so the engine refuses it — but `check_dangerous_patterns` did
   not catch the source and the agent got a bare refusal. The hint now points at typed checks
   (`x is ModelLine ? "ModelLine" : ...`) and `ex.Message` and forbids reaching for reflection by
-  another route. `suggest_for_error()` is exposed so a compile-only tool (Forge `validate_tool`,
-  which returns the engine's raw result) gets the same guidance.
+  another route. `suggest_for_error()` is exposed so a compile-only validation call (which returns
+  the engine's raw result) gets the same guidance.
 - **Skills synced to Paracore 4.8.4**: no accessor rounds unless `decimals` is passed;
   `GroupByParam` totals are raw sums.
 - **Public-repo hygiene** in the shared core (README and `PROJECT_SPEC.md` rewritten as library
